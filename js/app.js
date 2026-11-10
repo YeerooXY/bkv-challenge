@@ -2,7 +2,7 @@
 // BKV Challenge: offline-first ride log. Data lives in IndexedDB on this device only.
 
 const $ = (id) => document.getElementById(id);
-const TYPES = { ALL: "All", BUS: "Bus", TRAM: "Tram", TROLLEYBUS: "Trolley", HEV: "HEV", OTHER: "Other" };
+const TYPES = { ALL: "All", BUS: "Bus", TRAM: "Tram", TROLLEYBUS: "Trolley", HEV: "HEV", SUBWAY: "Metro", FERRY: "Ferry", OTHER: "Other" };
 const typeOf = (t) => (TYPES[t] && t !== "ALL" ? t : "OTHER");
 const normLine = (s) => s.trim().toUpperCase();
 const normPlate = (s) => s.replace(/\s+/g, "").toUpperCase();
@@ -126,9 +126,8 @@ function renderProgress() {
   const nodes = [bar("Overall", ld + pd, L.length + P.length), bar("Lines", ld, L.length), bar("Plates", pd, P.length)];
   Object.keys(TYPES).filter((t) => t !== "ALL").forEach((t) => {
     const lt = L.filter((l) => typeOf(l.type) === t), pt = P.filter((p) => typeOf(p.type) === t);
-    if (!lt.length && !pt.length) return;
-    nodes.push(bar(`${TYPES[t]} lines`, lt.filter((l) => cl.has(l.id)).length, lt.length));
-    nodes.push(bar(`${TYPES[t]} plates`, pt.filter((p) => cp.has(p.plate)).length, pt.length));
+    if (lt.length) nodes.push(bar(`${TYPES[t]} lines`, lt.filter((l) => cl.has(l.id)).length, lt.length));
+    if (pt.length) nodes.push(bar(`${TYPES[t]} plates`, pt.filter((p) => cp.has(p.plate)).length, pt.length));
   });
   $("progress").replaceChildren(...nodes);
 

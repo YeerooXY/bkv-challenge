@@ -1,50 +1,50 @@
-"""Build data/catalog.json (lines + plates) from a bkv-tracker sightings.json."""
+"""Build data/catalog.json (official lines + seen vehicle plates).
+
+Inputs come from the sibling bkv-tracker project:
+  routes.json     official BKK line numbers and types (python tracker.py routes)
+  sightings.json  vehicles seen in the live feed (python tracker.py scan / monitor)
+
+Usage: python tools/build_catalog.py [tracker_dir]
+"""
 import json
 import sys
 from pathlib import Path
 
-SRC = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parents[2] / "bkv-tracker" / "sightings.json"
+TRACKER = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parents[2] / "bkv-tracker"
 OUT = Path(__file__).parents[1] / "data" / "catalog.json"
 
-
-def route_id_to_public(route_id: str) -> str:
-    """Copied from bkv-tracker/tracker.py (approximate public line number)."""
-    rid = (route_id or "").strip()
-    if not rid:
-        return ""
-    if not rid.isdigit():
-        return rid
-    num = int(rid)
-    public, suffix = num // 10, num % 10
-    if suffix == 0:
-        return str(public)
-    if suffix == 5:
-        return f"{public}E"
-    if suffix == 1:
-        return f"{public}A"
-    if suffix == 2:
-        return f"{public}B"
-    return str(public) + chr(64 + suffix)
+# When one line number is used by two modes (e.g. tram 4 and its replacement bus 4), keep the real line.
+PRIORITY = ["SUBWAY", "TRAM", "TROLLEYBUS", "HEV", "FERRY", "BUS"]
 
 
 def main():
-    data = json.load(open(SRC, encoding="utf-8"))
-    lines, plates = {}, {}
-    for s in data.values():
-        t = s.get("type", "UNKNOWN")
-        pubs = sorted({route_id_to_public(r) for r in s.get("routes_seen_on", []) if r})
-        for p in pubs:
-            if p not in lines or lines[p] == "UNKNOWN":
-                lines[p] = t
+    routes = json.load(open(TRACKER / "routes.json", encoding="utf-8"))
+    sightings = json.load(open(TRACKER / "sightings.json", encoding="utf-8"))
+
+    lines = {}
+    for r in routes.values():
+        name, t = r["name"], r["type"]
+        if name not in lines or PRIORITY.index(t) < PRIORITY.index(lines[name]):
+            lines[name] = t
+
+    plates = {}
+    for s in sightings.values():
         plate = (s.get("license_plate") or "").replace(" ", "").upper()
-        if plate:
-            plates[plate] = {"plate": plate, "type": t, "lines": pubs}
+        t = s.get("type", "UNKNOWN")
+        if not plate or t == "TRAIN":  # MAV/GYSEV trains are not BKV vehicles
+            continue
+        names = sorted({routes[r]["name"] for r in s.get("routes_seen_on", []) if r in routes})
+        plates[plate] = {"plate": plate, "type": t, "lines": names}
+
     out = {
         "lines": [{"id": k, "label": k, "type": v} for k, v in sorted(lines.items())],
         "plates": sorted(plates.values(), key=lambda p: p["plate"]),
     }
     OUT.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    print(len(out["lines"]), "lines,", len(out["plates"]), "plates ->", OUT)
+    kinds = {}
+    for p in out["plates"]:
+        kinds[p["type"]] = kinds.get(p["type"], 0) + 1
+    print(len(out["lines"]), "lines,", len(out["plates"]), "plates", kinds, "->", OUT)
 
 
 main()

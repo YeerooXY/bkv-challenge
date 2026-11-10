@@ -35,13 +35,15 @@ The app is published with GitHub Pages: https://yeerooxy.github.io/bkv-challenge
 
 ## Catalog
 
-`data/catalog.json` lists known lines and plates. It was built from the live BKK vehicle feed by the sibling `bkv-tracker` tool:
+`data/catalog.json` has every official BKK line (from the BKK timetable data, so line numbers and types are exact) and every vehicle plate seen in the live BKK feed. The plate list only grows as the feed is scanned, so it is not the full fleet yet. Rebuild it from the sibling `bkv-tracker` project:
 
 ```
-python tools/build_catalog.py [path/to/sightings.json]
+python tracker.py routes     # in bkv-tracker: official lines and types
+python tracker.py scan       # in bkv-tracker: add vehicles currently on the road
+python tools/build_catalog.py
 ```
 
-Line numbers are derived from BKK internal route ids and are approximate. Trolleybus lines are not tagged yet, so they show under Other until they appear in a feed scan. Types TRAIN and UNKNOWN also show under Other.
+When a line number is shared by two modes (tram 4 and its replacement bus 4), the real line wins. MAV/GYSEV trains are left out. Vehicles seen without a line are listed as Other until they are seen on one.
 
 ## Checks
 
