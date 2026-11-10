@@ -17,12 +17,16 @@ BG = "#0f766e"
 def patch_manifest():
     p = ANDROID / "app" / "src" / "main" / "AndroidManifest.xml"
     s = p.read_text(encoding="utf-8")
-    extra = (
-        '    <uses-permission android:name="android.permission.CAMERA" />\n'
-        '    <uses-feature android:name="android.hardware.camera" android:required="false" />\n'
-    )
-    if "android.permission.CAMERA" not in s:
-        s = s.replace("</manifest>", extra + "</manifest>")
+    lines = [
+        ("android.permission.CAMERA", '<uses-permission android:name="android.permission.CAMERA" />'),
+        ("android.permission.ACCESS_FINE_LOCATION", '<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />'),
+        ("android.permission.ACCESS_COARSE_LOCATION", '<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />'),
+        ("android.hardware.camera", '<uses-feature android:name="android.hardware.camera" android:required="false" />'),
+        ("android.hardware.location.gps", '<uses-feature android:name="android.hardware.location.gps" android:required="false" />'),
+    ]
+    # Each entry is added on its own: a plugin may already have declared some of them.
+    extra = "".join(f"    {tag}\n" for key, tag in lines if key not in s)
+    s = s.replace("</manifest>", extra + "</manifest>")
     p.write_text(s, encoding="utf-8")
 
 
