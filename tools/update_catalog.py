@@ -23,6 +23,7 @@ from google.transit import gtfs_realtime_pb2
 sys.path.insert(0, str(Path(__file__).parent))
 import gtfs_stops
 import models
+import facts
 import rarity
 
 ROOT = Path(__file__).parents[1]
@@ -164,12 +165,15 @@ def main():
     stops_json = json.loads(gtfs_stops.OUT.read_text(encoding="utf-8"))
     svc = json.loads(gtfs_stops.SERVICE.read_text(encoding="utf-8"))
     line_tier, line_why = {}, {}
+    places_path = ROOT / "data" / "terminal_places.json"
+    places = json.loads(places_path.read_text(encoding="utf-8")) if places_path.exists() else {}
+    place_of = lambda lat, lon: places.get(f"{lat:.4f},{lon:.4f}", "")
     for lid, dirs in stops_json["lines"].items():
         wd = [sum(svc.get(g, {}).get("wd", [0] * 24)[h] for g in next((grp for grp in rarity.ALIAS_GROUPS if lid in grp), (lid,))) for h in range(24)]
         total = sum(wd) or 1
         night = sum(wd[h] for h in (23, 0, 1, 2, 3, 4)) / total
-        ends = [rarity.outside_budapest(*stops_json["stops"][d["s"][i]]) for d in dirs for i in (0, -1)]
-        line_tier[lid], line_why[lid] = rarity.line_rarity(wd, ends, night)
+        ends = [rarity.outside_budapest(*stops_json["stops"][d["s"][i]], place=place_of(*stops_json["stops"][d["s"][i]][1:])) for d in dirs for i in (0, -1)]
+        line_tier[lid], line_why[lid] = rarity.line_rarity(wd, ends, night, max(len(d["s"]) for d in dirs))
     per_model = {}
     for info in mod.values():
         per_model[info["m"]] = per_model.get(info["m"], 0) + 1
@@ -178,8 +182,13 @@ def main():
         if info:
             p["r"] = rarity.plate_rarity(per_model[info["m"]], info.get("ll"), info.get("h", False), ignore_idle=info["m"] == "HEV unit")  # HEV ids are train formations that come and go
 
+    timetable_json = json.loads(gtfs_stops.TIMETABLE.read_text(encoding="utf-8"))
+    notes_path = ROOT / "data" / "line-notes.json"
+    notes = json.loads(notes_path.read_text(encoding="utf-8")) if notes_path.exists() else {}
+    line_facts = facts.build(stops_json, timetable_json, svc, {k: v["type"] for k, v in lines.items()}, place_of, notes)
+
     out = {
-        "lines": [{"id": k, "label": k, "type": v["type"], "color": v["color"], "text": v["text"], "h": line_hours.get(k, [0] * 24), "r": line_tier.get(k, 0), "rw": line_why.get(k, [])} for k, v in sorted(lines.items())],
+        "lines": [{"id": k, "label": k, "type": v["type"], "color": v["color"], "text": v["text"], "h": line_hours.get(k, [0] * 24), "r": line_tier.get(k, 0), "rw": line_why.get(k, []), **line_facts.get(k, {"fc": "A special BKK service without a published stop list.", "tr": []})} for k, v in sorted(lines.items())],
         "plates": sorted(plates.values(), key=lambda p: p["plate"]),
     }
     CATALOG.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")

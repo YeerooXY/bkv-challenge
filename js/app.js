@@ -250,7 +250,7 @@ function rarityWhy(kind, o) {
     const days = idleDays(o);
     if (days >= 3) why.push(`Not signed on for ${days} days`);
   } else {
-    const t = { night: "Night line", out2: "Starts and ends outside Budapest", out1: "Reaches outside Budapest", few: "Only a handful of trips a day", nightmare: "A night line that starts and ends outside Budapest: a whole night of riding" };
+    const t = { night: "Night line", out2: "Starts and ends outside Budapest", out1: "Reaches outside Budapest", few: "Only a handful of trips a day", nightmare: "A night line that starts and ends outside Budapest: a whole night of riding", long: "A very long line: over 70 stops" };
     (o.rw || []).forEach((c) => t[c] && why.push(t[c]));
   }
   return why;
@@ -372,6 +372,11 @@ function showDetail(kind, o) {
     body.append(el("p", "", whole ? "Ridden end to end." : ride.length ? `Ridden ${ride.length} time${ride.length > 1 ? "s" : ""}, but not end to end yet.` : "Not ridden yet."));
     if (!whole && dd) body.append(el("p", "sub", `Ride from ${stopName(dd[0].s[0])} to ${stopName(dd[0].s[dd[0].s.length - 1])}, either way, to complete it.`));
     if (tierOf(o) > 0) body.append(tierBox());
+    if (o.fc) {
+      const f = el("div", "factbox"); f.append(el("strong", "", "Did you know"), el("p", "", o.fc));
+      const st = el("div", "facts"); [...(o.ns ? [`${o.ns} stops`, `${o.km} km`, `${o.tp} trips on a weekday`] : []), ...(o.tr || [])].forEach((t) => st.append(el("span", "factchip", t)));
+      f.append(st); body.append(f);
+    }
     const dirs = stopData.lines[o.id] || [], ul = el("ul", "plain");
     dirs.forEach((d) => ul.append(el("li", "", `To ${d.to}: ${d.s.length} stops`)));
     section("Directions", dirs.length ? ul : el("p", "sub", "No stop list for this line."));
@@ -1012,9 +1017,10 @@ document.querySelectorAll("dialog.sheet").forEach((d) => d.addEventListener("cli
 }));
 
 function showCredits() {
-  const list = $("credits-list"), items = Object.entries(modelPhotos);
-  if (!items.length) { $("credits").hidden = true; return; }
-  list.replaceChildren(...items.map(([m, ph]) => { const p = el("p", "sub", `${m}: ${ph.credit}`); return p; }));
+  const list = $("credits-list"), byCredit = new Map();
+  Object.entries(modelPhotos).forEach(([m, ph]) => { if (!byCredit.has(ph.credit)) byCredit.set(ph.credit, []); byCredit.get(ph.credit).push(m); });
+  if (!byCredit.size) { $("credits").hidden = true; return; }
+  list.replaceChildren(...[...byCredit].map(([credit, models]) => el("p", "sub", `${models.join(", ")}: ${credit}`)));
 }
 
 // ---------- boot ----------

@@ -1,0 +1,242 @@
+{
+ "Volvo solo": {
+  "file": "01-volvo-solo.jpg",
+  "credit": "PMilán, CC0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:187-es_busz_(MFW-505).jpg)"
+ },
+ "Volvo 7700A articulated": {
+  "file": "02-volvo-7700a-articulated.jpg",
+  "credit": "LaSza, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:107-es_busz,_Budapest_(FKU-906,_20230317).jpg)"
+ },
+ "Volvo hybrid solo": {
+  "file": "03-volvo-hybrid-solo.jpg",
+  "credit": "Kemenymate, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:7-es_%C3%A9s_110-es_busz_Budapest.jpg)"
+ },
+ "Volvo 8500 Saffle": {
+  "file": "04-volvo-8500-saffle.jpg",
+  "credit": "Kemenymate, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:58-as_busz_(MCX-185).JPG)"
+ },
+ "Volvo Alfa Civis 18 articulated": {
+  "file": "05-volvo-alfa-civis-18-articula.jpg",
+  "credit": "SkipzZ, CC0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Ex-debreceni_Alfa_C%C3%ADvis_18_budapesten_(LMG-140).jpg)"
+ },
+ "Mercedes eCitaro": {
+  "file": "06-mercedes-ecitaro.jpg",
+  "credit": "Random photos 1989, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Budapest,_Sz%C3%A9ll_K%C3%A1lm%C3%A1n_t%C3%A9r,_16a_busz,_3.jpg)"
+ },
+ "Mercedes Conecto solo": {
+  "file": "07-mercedes-conecto-solo.jpg",
+  "credit": "LaSza, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:212-es_busz,_Budapest_(AA_DI-598,_20230317).jpg)"
+ },
+ "Mercedes Conecto 2 solo": {
+  "file": "08-mercedes-conecto-2-solo.jpg",
+  "credit": "PMilán, CC0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:157A_busz_(AA-DI-571).jpg)"
+ },
+ "Mercedes Conecto articulated": {
+  "file": "09-mercedes-conecto-articulated.jpg",
+  "credit": "Kemenymate, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:7-es_busz_(NCA-504).jpg)"
+ },
+ "Mercedes Conecto 2G articulated": {
+  "file": "10-mercedes-conecto-2g-articula.jpg",
+  "credit": "PMilán, CC0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:85-%C3%B6s_busz_(AA-DR-761).jpg)"
+ },
+ "Mercedes Citaro O 530": {
+  "file": "11-mercedes-citaro-o-530.jpg",
+  "credit": "Kemenymate, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:128-as_busz_(NGC-154).JPG)"
+ },
+ "Mercedes Citaro C2G": {
+  "file": "12-mercedes-citaro-c2g.jpg",
+  "credit": "AO-FV-747, CC BY 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Mercedes-Benz_Citaro_C2G_(AE-LD-652)_KT.jpg)"
+ },
+ "Mercedes Citaro C2 K maximidi": {
+  "file": "13-mercedes-citaro-c2-k-maximid.jpg",
+  "credit": "SkipzZ, CC0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Mercedes_Citaro_C2_K_maximidi_(AO-FL-224)_a_Batthy%C3%A1ny_t%C3%A9ren.jpg)"
+ },
+ "Mercedes O530 Citaro G articulated": {
+  "file": "14-mercedes-o530-citaro-g-artic.jpg",
+  "credit": "Kemenymate, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:109-es_busz_(PCC-920).jpg)"
+ },
+ "Mercedes Citaro C2-S1 solo": {
+  "file": "15-mercedes-citaro-c2-s1-solo.jpg",
+  "credit": "PMilán, CC0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:99-es_busz_(AE-LD-559).jpg)"
+ },
+ "MAN Lions City 12 solo": {
+  "file": "16-man-lions-city-12-solo.jpg",
+  "credit": "Kemenymate, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:122E_busz_(AA_HY-803).jpg)"
+ },
+ "MAN Lions City A21": {
+  "file": "17-man-lions-city-a21.jpg",
+  "credit": "LaSza, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:199-es_busz,_Budapest_(NAY-348,_20230317).jpg)"
+ },
+ "MAN Lions City C18 articulated": {
+  "file": "18-man-lions-city-c18-articulat.jpg",
+  "credit": "Random photos 1989, CC0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Budapest,_%C3%9Ajpalota,_F%C5%91_t%C3%A9r,_196A_busz.jpg)"
+ },
+ "MAN Lions City A23 G": {
+  "file": "19-man-lions-city-a23-g.jpg",
+  "credit": "Kemenymate, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:23-as_busz_(PXZ-876).jpg)"
+ },
+ "Van Hool NewAG300 articulated": {
+  "file": "20-van-hool-newag300-articulate.jpg",
+  "credit": "Christo, CC0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Budapest,_Hat%C3%A1r_%C3%BAt,_busz,_7.jpg)"
+ },
+ "Van Hool A330 CNG solo": {
+  "file": "21-van-hool-a330-cng-solo.jpg",
+  "credit": "Christo, CC0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Budapest,_Hat%C3%A1r_%C3%BAt,_busz,_6.jpg)"
+ },
+ "Van Hool NewA330 solo": {
+  "file": "22-van-hool-newa330-solo.jpg",
+  "credit": "Kemenymate, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:185-%C3%B6s_busz_(MKL-981).jpg)"
+ },
+ "Modulo M108d solo": {
+  "file": "23-modulo-m108d-solo.jpg",
+  "credit": "Random photos 1989, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Budapest,_Sz%C3%A9ll_K%C3%A1lm%C3%A1n_t%C3%A9r,_16a_busz,_4.jpg)"
+ },
+ "Modulo M168d articulated": {
+  "file": "24-modulo-m168d-articulated.jpg",
+  "credit": "PMilán, CC0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:107-es_busz_(SGY-982).jpg)"
+ },
+ "Modulo Medio C68E midi": {
+  "file": "25-modulo-medio-c68e-midi.jpg",
+  "credit": "Random photos 1989, CC0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Budapest,_Szenth%C3%A1roms%C3%A1g_t%C3%A9r,_busz,_1.jpg)"
+ },
+ "BYD eBus B12 solo": {
+  "file": "26-byd-ebus-b12-solo.jpg",
+  "credit": "PMilán, CC0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:53-as_busz_(AO-IB-792).jpg)"
+ },
+ "BYD eBus B19 articulated": {
+  "file": "27-byd-ebus-b19-articulated.jpg",
+  "credit": "PMilán, CC0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:139-es_busz_(AO-NW-958).jpg)"
+ },
+ "Karsan Atak midi": {
+  "file": "28-karsan-atak-midi.jpg",
+  "credit": "Random photos 1989, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Budapest,_Sz%C3%A9ll_K%C3%A1lm%C3%A1n_t%C3%A9r,_16a_busz,_3.jpg)"
+ },
+ "Solaris Urbino 10": {
+  "file": "29-solaris-urbino-10.jpg",
+  "credit": "Random photos 1989, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Budapest,_Apostol_utca,_191-es_busz.jpg)"
+ },
+ "Solaris Urbino 8.9 midi": {
+  "file": "30-solaris-urbino-8-9-midi.jpg",
+  "credit": "PMilán, CC0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:251E_busz_(AA-MD-173).jpg)"
+ },
+ "Ikarus 127V solo": {
+  "file": "31-ikarus-127v-solo.jpg",
+  "credit": "PMilán, CC0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:33-as_busz_(PKD-003).jpg)"
+ },
+ "Ikarus 187V articulated": {
+  "file": "32-ikarus-187v-articulated.jpg",
+  "credit": "Kemenymate, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:7-es_busz_(MDD-721).jpg)"
+ },
+ "Ikarus 260 solo heritage": {
+  "file": "33-ikarus-260-solo-heritage.jpg",
+  "credit": "VinceB, CC BY-SA 3.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:137-es_busz_(Budapest).JPG)"
+ },
+ "Ikarus 280 articulated heritage": {
+  "file": "34-ikarus-280-articulated-herit.jpg",
+  "credit": "Kemenymate, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:109-es_busz_(BPO-434).jpg)"
+ },
+ "Ikarus 405 midi heritage": {
+  "file": "35-ikarus-405-midi-heritage.jpg",
+  "credit": "Random photos 1989, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Budapest,_Aeropark,_5._Ikarus_tal%C3%A1lkoz%C3%B3,_14.jpg)"
+ },
+ "Ikarus 412 solo heritage": {
+  "file": "36-ikarus-412-solo-heritage.jpg",
+  "credit": "Random photos 1989, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Budapest,_Hat%C3%A1r_%C3%BAt,_142e_busz.jpg)"
+ },
+ "Ikarus 415 solo heritage": {
+  "file": "37-ikarus-415-solo-heritage.jpg",
+  "credit": "Random photos 1989, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Budapest,_Aeropark,_5._Ikarus_tal%C3%A1lkoz%C3%B3,_17.jpg)"
+ },
+ "Ikarus 435 articulated heritage": {
+  "file": "38-ikarus-435-articulated-herit.jpg",
+  "credit": "User:Hunyadym, CC BY-SA 3.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Bus_9_in_Budapest.jpg)"
+ },
+ "Ikarus 412 trolleybus": {
+  "file": "39-ikarus-412-trolleybus.jpg",
+  "credit": "Windmemories, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:20150720_Ikarus_412T_trolleybus_in_Budapest.jpg)"
+ },
+ "Ikarus 411 trolleybus": {
+  "file": "40-ikarus-411-trolleybus.jpg",
+  "credit": "Kemenymate, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:74-es_trolibusz_(400).jpg)"
+ },
+ "GVM trolleybus": {
+  "file": "41-gvm-trolleybus.jpg",
+  "credit": "Zsombor Vasas, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Budapest_legend%C3%A1ja_%E2%80%93_Ikarus%E2%80%93Ganz_280T_a_Keleti_p%C3%A1lyaudvarn%C3%A1l.jpg)"
+ },
+ "Solaris Trollino 18 trolleybus": {
+  "file": "42-solaris-trollino-18-trolleyb.jpg",
+  "credit": "Sir Morosus, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Solaris_Trollino_18_(9015)_a_Baross_utc%C3%A1ban.jpg)"
+ },
+ "Solaris Trollino 12 trolleybus": {
+  "file": "43-solaris-trollino-12-trolleyb.jpg",
+  "credit": "LaSza, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Solaris_Trollino_12_(8005,_Budapest).JPG)"
+ },
+ "Škoda-Solaris Trollino 12 solo trolleybus": {
+  "file": "44-koda-solaris-trollino-12-sol.jpg",
+  "credit": "Globetrotter19, CC BY-SA 3.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Busbetriebshof,_Solaris_Trollino_(8116),_Seitenansicht,_2023_K%C5%91b%C3%A1nya.jpg)"
+ },
+ "Škoda-Solaris Trollino 18 articulated trolleybus": {
+  "file": "45-koda-solaris-trollino-18-art.jpg",
+  "credit": "Sir Morosus, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:%C5%A0koda-Solaris_Trollino_18_(9111)_(Budapest,_line_83).jpg)"
+ },
+ "Tátra T5C5": {
+  "file": "46-t-tra-t5c5.jpg",
+  "credit": "Christo, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Budapest,_Tatra_T5C5.jpg)"
+ },
+ "Tátra T5C5K": {
+  "file": "47-t-tra-t5c5k.jpg",
+  "credit": "Random photos 1989, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Budapest,_Szent_Gell%C3%A9rt_rakpart,_villamos,_10.jpg)"
+ },
+ "Siemens Combino": {
+  "file": "48-siemens-combino.jpg",
+  "credit": "Random photos 1989, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Budapest,_Corvin-negyed,_villamos,_13.jpg)"
+ },
+ "TW 6000": {
+  "file": "49-tw-6000.jpg",
+  "credit": "Sir Morosus, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Semmelweis_University_Tower_%26_TW_6000_(line_24)_in_Budapest.jpg)"
+ },
+ "Ganz KCSV7": {
+  "file": "50-ganz-kcsv7.jpg",
+  "credit": "Bence Petrás, CC BY-SA 2.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Ganz_KCSV7_1301_Budapest-Kelenf%C3%B6ld,_2020._07._21._(50138092067).jpg)"
+ },
+ "Cog railway car": {
+  "file": "51-cog-railway-car.jpg",
+  "credit": "I would appreciate being notified if you use my work outside Wikimedia. More of, CC BY 3.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Budape%C5%A1%C5%A5,_V%C3%A1rosmajor,_depo,_v%C5%AFz_zuba%C4%8Dky.jpg)"
+ },
+ "Mercedes Conecto G 2 articulated": {
+  "file": "10-mercedes-conecto-2g-articula.jpg",
+  "credit": "PMilán, CC0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:85-%C3%B6s_busz_(AA-DR-761).jpg)"
+ },
+ "Mercedes ConectoG 2 articulated": {
+  "file": "10-mercedes-conecto-2g-articula.jpg",
+  "credit": "PMilán, CC0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:85-%C3%B6s_busz_(AA-DR-761).jpg)"
+ },
+ "Mercedes Conecto G": {
+  "file": "09-mercedes-conecto-articulated.jpg",
+  "credit": "Kemenymate, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:7-es_busz_(NCA-504).jpg)"
+ },
+ "Ganz-Solaris Trollino 12 trolleybus": {
+  "file": "43-solaris-trollino-12-trolleyb.jpg",
+  "credit": "LaSza, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Solaris_Trollino_12_(8005,_Budapest).JPG)"
+ },
+ "Ganz-Solaris Trollino 12D trolleybus": {
+  "file": "43-solaris-trollino-12-trolleyb.jpg",
+  "credit": "LaSza, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Solaris_Trollino_12_(8005,_Budapest).JPG)"
+ },
+ "T5C5T": {
+  "file": "46-t-tra-t5c5.jpg",
+  "credit": "Christo, CC BY-SA 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Budapest,_Tatra_T5C5.jpg)"
+ },
+ "Mercedes O530 Citaro K maximidi": {
+  "file": "13-mercedes-citaro-c2-k-maximid.jpg",
+  "credit": "SkipzZ, CC0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Mercedes_Citaro_C2_K_maximidi_(AO-FL-224)_a_Batthy%C3%A1ny_t%C3%A9ren.jpg)"
+ },
+ "Mercedes Citaro C2G articulated": {
+  "file": "12-mercedes-citaro-c2g.jpg",
+  "credit": "AO-FV-747, CC BY 4.0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:Mercedes-Benz_Citaro_C2G_(AE-LD-652)_KT.jpg)"
+ },
+ "Mercedes Citaro C2-S1-G articulated": {
+  "file": "15-mercedes-citaro-c2-s1-solo.jpg",
+  "credit": "PMilán, CC0, Wikimedia Commons (https://commons.wikimedia.org/wiki/File:99-es_busz_(AE-LD-559).jpg)"
+ }
+}

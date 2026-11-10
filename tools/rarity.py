@@ -26,8 +26,11 @@ CENTER = (47.4979, 19.0402)  # Deak Ferenc ter
 OUTSIDE_KM = 17  # beyond this the stop is outside the city limits (the eastern and southern districts reach about 15 km)
 
 
-def outside_budapest(stop_name: str, lat: float, lon: float) -> bool:
-    """A stop is outside Budapest when it is named after a town around the city or lies far from the center."""
+def outside_budapest(stop_name: str, lat: float, lon: float, place: str = "") -> bool:
+    """A stop is outside Budapest when OpenStreetMap places it in another municipality (data/terminal_places.json);
+    without that, when it is named after a town around the city or lies far from the center."""
+    if place:
+        return place != "Budapest"
     if ", " in stop_name and stop_name.split(", ")[0] in AGGLOMERATION:
         return True
     r = math.pi / 180
@@ -40,7 +43,7 @@ def outside_budapest(stop_name: str, lat: float, lon: float) -> bool:
 ALIAS_GROUPS = [("4", "6", "4-6")]
 
 
-def line_rarity(weekday_trips, ends, night_share):
+def line_rarity(weekday_trips, ends, night_share, stops=0):
     """Returns (tier, reasons). ends: one boolean per line end, True if that end is outside Budapest.
     Reasons: night, out2 (both ends outside Budapest), out1 (one end outside), few (12 trips a weekday or fewer)."""
     score, why = 0, []
@@ -57,6 +60,9 @@ def line_rarity(weekday_trips, ends, night_share):
     tier = min(score, 4)
     if out2:
         tier = 5
+    if stops > 70:  # a very long stop list is always at least legendary
+        tier = max(tier, 4)
+        why.append("long")
     if night and out2:
         tier = 7  # starts AND ends outside Budapest AND runs at night: a whole night of riding
         why.append("nightmare")

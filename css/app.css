@@ -282,3 +282,8 @@ dialog.catch::backdrop{background:rgba(0,0,0,.6)}
 @keyframes throb2{0%,100%{box-shadow:0 0 50px rgba(209,0,31,.6)}50%{box-shadow:0 0 100px rgba(209,0,31,1)}}
 .tierbox.r7{background:#12060a;color:#ffd9de}.tierbox.r7 ul{color:#ffd9de}
 @media (prefers-reduced-motion:reduce){.tile.r7,.catchcard.r7{animation:none}}
+.factbox{border-radius:var(--r);background:var(--card2);padding:.8rem .9rem;margin:.8rem 0}
+.factbox strong{font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--accent)}
+.factbox p{margin:.3rem 0 .6rem;font-size:1.02rem}
+.facts{display:flex;flex-wrap:wrap;gap:.35rem}.factchip{background:var(--card);border-radius:999px;padding:.15rem .65rem;font-size:.82rem;color:var(--muted)}
+.modelpick summary{gap:.4rem}

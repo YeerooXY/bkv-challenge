@@ -13,7 +13,9 @@ UA = "bkv-challenge-catalog/1.0 (+https://github.com/YeerooXY/bkv-challenge; dai
 
 RAIL = re.compile(r"motorvonat|mozdony|vezérlőkocsi|vezerlokocsi|mobil obu|teszt|metrovagonmas|motorkocsi", re.I)
 COG = re.compile(r"fogaskerek", re.I)  # the cog railway, line 60
-VOLAN = re.compile(r"vol[áa]n", re.I)  # Volanbusz vehicles run some BKK lines but are not part of the BKV fleet
+# Volanbusz vehicles run some BKK lines but are not part of the BKV fleet. WinMenetrend labels some "(Volan)"; the
+# models below are run out of Volan's Budapest depots (Etele ter, Nepliget, Mogyorodi ut) without that label.
+VOLAN = re.compile(r"vol[áa]n|credo|kravtee|setra|volvo\s*(?:8700|8900|7900a|9700)|intouro|tourliner|tourismo|higer|neoplan", re.I)
 HEV_UNIT = re.compile(r"^m[xi]+a?k?-p", re.I)
 TRAM = re.compile(r"tátra|tatra|t5c5|caf \d|combino|tw ?6000|ganz csukl|kcsv", re.I)
 TROLLEY = re.compile(r"trollino|trolibusz|\btr\.|gvm", re.I)
@@ -21,7 +23,7 @@ SPECIAL = re.compile(r"mozg[áa]skorl", re.I)  # MOZG: the service for people wi
 HERITAGE = re.compile(r"nosztalgia", re.I)
 
 WORDS = [
-    (r"\bVanHool\b", "Van Hool"), (r"\bhibrid\b", "hybrid"), (r"\bSkoda\b", "Škoda"),
+    (r"\bSOLARIS\b", "Solaris"), (r"\bGANZ\b", "Ganz"), (r"\bVanHool\b", "Van Hool"), (r"\bhibrid\b", "hybrid"), (r"\bSkoda\b", "Škoda"),
     (r"(CAF \d) modulos szerelv[ée]ny", r"\1-module"), (r"KCSV7 Korszer[űu]s[íi]tett Ganz", "Ganz KCSV7"),
     (r"\bITK-REFORM\b", "ITK-Reform"), (r"\bMB515\b", "MB515 minibus"),
     (r"\(.*?\)", ""), (r"\bMercedes-Benz\b|\bMERCEDES\b|\bMB\b(?=\s+(?:Citaro|Conecto))", "Mercedes"),
