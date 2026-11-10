@@ -16,6 +16,7 @@ import zipfile
 from datetime import date
 from pathlib import Path
 
+from datetime import datetime
 import requests
 from google.transit import gtfs_realtime_pb2
 
@@ -59,6 +60,14 @@ def load_routes():
     return routes
 
 
+def budapest_hour():
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("Europe/Budapest")).hour
+    except Exception:  # no time zone database (plain Windows): Budapest is UTC+1 in winter
+        return (datetime.utcnow().hour + 1) % 24
+
+
 def feed_vehicles(key):
     resp = requests.get(f"{FEED_URL}?key={key}", timeout=60)
     resp.raise_for_status()
@@ -84,8 +93,10 @@ def main():
         if r["name"] not in lines or PRIORITY.index(r["type"]) < PRIORITY.index(lines[r["name"]]["type"]):
             lines[r["name"]] = r
 
-    old = json.loads(CATALOG.read_text(encoding="utf-8")) if CATALOG.exists() else {"plates": []}
+    old = json.loads(CATALOG.read_text(encoding="utf-8")) if CATALOG.exists() else {"plates": [], "lines": []}
     plates = {p["plate"]: p for p in old["plates"]}
+    line_hours = {l["id"]: l.get("h") or [0] * 24 for l in old.get("lines", [])}
+    hour = budapest_hour()
     added = 0
     for plate, route in feed_vehicles(key):
         if route and route not in routes:
@@ -94,13 +105,15 @@ def main():
         if p is None:
             p = plates[plate] = {"plate": plate, "type": "UNKNOWN", "lines": []}
             added += 1
+        p.setdefault("h", [0] * 24)[hour] += 1  # sightings by hour of day
         if route:
+            line_hours.setdefault(routes[route]["name"], [0] * 24)[hour] += 1
             p["type"] = routes[route]["type"]
             if routes[route]["name"] not in p["lines"]:
                 p["lines"] = sorted(p["lines"] + [routes[route]["name"]])
 
     out = {
-        "lines": [{"id": k, "label": k, "type": v["type"], "color": v["color"], "text": v["text"]} for k, v in sorted(lines.items())],
+        "lines": [{"id": k, "label": k, "type": v["type"], "color": v["color"], "text": v["text"], "h": line_hours.get(k, [0] * 24)} for k, v in sorted(lines.items())],
         "plates": sorted(plates.values(), key=lambda p: p["plate"]),
     }
     CATALOG.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")

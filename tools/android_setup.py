@@ -21,6 +21,8 @@ def patch_manifest():
         ("android.permission.CAMERA", '<uses-permission android:name="android.permission.CAMERA" />'),
         ("android.permission.ACCESS_FINE_LOCATION", '<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />'),
         ("android.permission.ACCESS_COARSE_LOCATION", '<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />'),
+        ("android.permission.READ_MEDIA_IMAGES", '<uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />'),
+        ("android.permission.READ_EXTERNAL_STORAGE", '<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />'),
         ("android.hardware.camera", '<uses-feature android:name="android.hardware.camera" android:required="false" />'),
         ("android.hardware.location.gps", '<uses-feature android:name="android.hardware.location.gps" android:required="false" />'),
     ]
@@ -28,6 +30,14 @@ def patch_manifest():
     extra = "".join(f"    {tag}\n" for key, tag in lines if key not in s)
     s = s.replace("</manifest>", extra + "</manifest>")
     p.write_text(s, encoding="utf-8")
+
+
+def install_plugin():
+    """Add the RecentPhotos plugin (newest photos as thumbnails) and register it in MainActivity."""
+    pkg = ANDROID / "app" / "src" / "main" / "java" / "com" / "yeeroo" / "bkvchallenge"
+    pkg.mkdir(parents=True, exist_ok=True)
+    for name in ("RecentPhotosPlugin.java", "MainActivity.java"):
+        (pkg / name).write_text((Path(__file__).parent / "android" / name).read_text(encoding="utf-8"), encoding="utf-8")
 
 
 def patch_version(code, name):
@@ -56,6 +66,7 @@ def icons():
 
 
 patch_manifest()
+install_plugin()
 patch_version(sys.argv[1], sys.argv[2])
 icons()
 print("android project customized")

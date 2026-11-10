@@ -102,7 +102,7 @@ const sKey = (t) => t.replace(/[\s-]+/g, "").toUpperCase().replace(/O/g, "0");
 const rank = (k, q) => (k.startsWith(q) ? 0 : k.endsWith(q) ? 1 : 2);
 
 function attachSuggest(input, list, getMatches, onPick) {
-  let items = [], active = -1;
+  let items = [], active = -1, busy = false;
   const close = () => { list.hidden = true; input.setAttribute("aria-expanded", "false"); input.removeAttribute("aria-activedescendant"); active = -1; };
   const mark = () => items.forEach((it, i) => it.el.setAttribute("aria-selected", String(i === active)));
   function render() {
@@ -115,11 +115,11 @@ function attachSuggest(input, list, getMatches, onPick) {
       main.append(el("span", m.isNew ? "new" : "", m.label));
       li.append(main);
       if (m.sub) li.append(el("span", "sub", m.sub));
-      li.addEventListener("pointerdown", (e) => { e.preventDefault(); pick(i); });
+      li.addEventListener("click", () => pick(i)); // a click, not a touch start: scrolling the list must not select
       return { ...m, el: li };
     });
     if (!items.length) return close();
-    list.replaceChildren(...items.map((i) => i.el)); list.hidden = false;
+    list.replaceChildren(...items.map((i) => i.el)); list.hidden = false; list.scrollTop = 0;
     input.setAttribute("aria-expanded", "true"); active = -1; mark();
   }
   function pick(i) {
@@ -128,9 +128,12 @@ function attachSuggest(input, list, getMatches, onPick) {
     input.dispatchEvent(new Event("input", { bubbles: true }));
     close();
   }
+  list.addEventListener("pointerdown", () => { busy = true; });
+  ["pointerup", "pointercancel"].forEach((t) => document.addEventListener(t, () => setTimeout(() => (busy = false), 300)));
+  document.addEventListener("pointerdown", (e) => { if (!list.hidden && !list.contains(e.target) && e.target !== input) close(); });
   input.addEventListener("input", render);
   input.addEventListener("focus", render);
-  input.addEventListener("blur", () => setTimeout(close, 120));
+  input.addEventListener("blur", () => setTimeout(() => { if (!busy) close(); }, 150));
   input.addEventListener("keydown", (e) => {
     if (list.hidden) return;
     if (e.key === "ArrowDown") { e.preventDefault(); active = (active + 1) % items.length; }
@@ -144,12 +147,16 @@ function attachSuggest(input, list, getMatches, onPick) {
 
 function plateMatches(raw) {
   const q = sKey(raw), cleared = clearedPlates();
-  const res = allPlates().map((p) => ({ p, k: sKey(p.plate) })).filter((x) => x.k.includes(q))
-    .sort((a, b) => rank(a.k, q) - rank(b.k, q) || a.k.length - b.k.length || (cleared.has(a.p.plate) - cleared.has(b.p.plate)) || a.p.plate.localeCompare(b.p.plate))
-    .slice(0, 8)
+  const ln = normLine($("line").value), line = allLines().find((l) => l.id === ln);
+  // With a known line, only vehicles of that line's type are offered (no trams for a bus line).
+  const fits = (p) => !line || typeOf(p.type) === typeOf(line.type) || typeOf(p.type) === "OTHER";
+  const onLine = (p) => !!ln && (p.lines || []).includes(ln);
+  const res = allPlates().filter(fits).map((p) => ({ p, k: sKey(p.plate) })).filter((x) => x.k.includes(q))
+    .sort((a, b) => rank(a.k, q) - rank(b.k, q) || onLine(b.p) - onLine(a.p) || a.k.length - b.k.length || (cleared.has(a.p.plate) - cleared.has(b.p.plate)) || a.p.plate.localeCompare(b.p.plate))
+    .slice(0, 40)
     .map(({ p }) => ({
       value: p.plate, label: p.plate, plate: p, badge: badge(TYPES[typeOf(p.type)], TYPE_COLOR[typeOf(p.type)], "small"),
-      sub: [(p.lines || []).slice(0, 4).join(", "), cleared.has(p.plate) ? "already ridden" : "not ridden yet"].filter(Boolean).join(" · "),
+      sub: [onLine(p) ? `seen on ${ln}` : (p.lines || []).slice(0, 4).join(", "), cleared.has(p.plate) ? "already ridden" : "not ridden yet"].filter(Boolean).join(" · "),
     }));
   const norm = normPlate(raw);
   if (!allPlates().some((p) => p.plate === norm)) res.push({ value: norm, label: `Add "${norm}" as a new plate`, isNew: true });
@@ -199,8 +206,41 @@ function renderChips(kind) {
 }
 
 const byName = (a, b) => a.localeCompare(b, "hu", { numeric: true });
-function lineChip(l) { return badge(l.id, lineColors(l), "chip"); }
-function plateChip(p) { const s = el("span", "item plate", p.plate); s.style.borderLeftColor = "#" + TYPE_COLOR[typeOf(p.type)][0]; return s; }
+function lineChip(l) { const b = badge(l.id, lineColors(l), "chip"); b.tabIndex = 0; b.setAttribute("role", "button"); b.setAttribute("aria-label", `Line ${l.id}`); b.onclick = () => showDetail("line", l); b.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showDetail("line", l); } }; return b; }
+function plateChip(p) { const s = el("button", "item plate", p.plate); s.type = "button"; s.style.borderLeftColor = "#" + TYPE_COLOR[typeOf(p.type)][0]; s.onclick = () => showDetail("plate", p); return s; }
+
+// Detail sheet for a line or a plate: where and when it has been seen.
+function hoursChart(h) {
+  const max = Math.max(1, ...h), wrap = el("div", "hours");
+  h.forEach((v, i) => { const c = el("div", "hcol"), b = el("i"); b.style.height = Math.round((v / max) * 100) + "%"; b.title = `${i}:00, ${v} sightings`; c.append(b, el("span", "hl", i % 6 === 0 ? String(i) : "")); wrap.append(c); });
+  const top = h.map((v, i) => [v, i]).filter((x) => x[0] > 0).sort((a, b) => b[0] - a[0]).slice(0, 3).map((x) => `${x[1]}:00`);
+  wrap.setAttribute("role", "img"); wrap.setAttribute("aria-label", `Sightings by hour of day. Most often at ${top.join(", ")}.`);
+  return wrap;
+}
+function showDetail(kind, o) {
+  const body = $("detail-body"); body.replaceChildren();
+  const hours = (o.h || []).length === 24 ? o.h : null, seen = hours ? hours.reduce((a, b) => a + b, 0) : 0;
+  const section = (title, node) => { body.append(el("h3", "", title), node); };
+  if (kind === "plate") {
+    $("detail-title").textContent = o.plate;
+    const ride = entries.find((e) => normPlate(e.plate) === o.plate);
+    body.append(badge(TYPES[typeOf(o.type)], TYPE_COLOR[typeOf(o.type)]), el("p", "", ride ? `Ridden on ${new Date(ride.time).toLocaleDateString()} (line ${ride.line}).` : "Not ridden yet."));
+    const ls = el("div", "items"); (o.lines || []).forEach((id) => ls.append(lineBadge(id)));
+    section("Seen on lines", (o.lines || []).length ? ls : el("p", "sub", "No line seen yet."));
+  } else {
+    $("detail-title").textContent = `Line ${o.id}`;
+    body.append(badge(o.id, lineColors(o)), el("span", "sub", ` ${TYPES[typeOf(o.type)]}`));
+    const dirs = stopData.lines[o.id] || [], ul = el("ul", "plain");
+    dirs.forEach((d) => ul.append(el("li", "", `To ${d.to}: ${d.s.length} stops`)));
+    section("Directions", dirs.length ? ul : el("p", "sub", "No stop list for this line."));
+    const ride = entries.filter((e) => normLine(e.line) === o.id);
+    body.append(el("p", "", ride.length ? `You rode it ${ride.length} time${ride.length > 1 ? "s" : ""}.` : "Not ridden yet."));
+  }
+  section("When it is usually seen", seen >= 3 ? hoursChart(hours) : el("p", "sub", "Not enough sightings yet. The catalog adds a sample every hour, so this fills in over the coming days."));
+  if (seen >= 3) body.append(el("p", "sub", `Based on ${seen} sightings, by hour of day (Budapest time).`));
+  $("detail").showModal();
+}
+$("detail-close").onclick = () => $("detail").close();
 
 function renderMissing(kind) {
   renderChips(kind);
@@ -355,7 +395,7 @@ function renderThumbs() {
     li.append(img, b); return li;
   });
   const add = el("li"); const ab = el("button", "add", "+"); ab.id = "add-photo"; ab.type = "button"; ab.setAttribute("aria-label", "Add photo");
-  ab.onclick = () => $("photo-sheet").showModal();
+  ab.onclick = openSheet;
   add.append(ab);
   $("thumbs").replaceChildren(...tiles, add);
 }
@@ -379,24 +419,69 @@ async function addFiles(files) {
   for (const f of files) { const b = await downscale(f); photos.push({ blob: b, url: URL.createObjectURL(b) }); }
   renderThumbs(); msg(""); saveDraft(); $("add-photo").focus();
 }
-async function addFrom(source) {
+// The sheet: a grid that starts with a camera tile, then (in the Android app) your latest photos.
+const sel = new Set(); // content URIs picked in the grid
+const nativeRecent = () => !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());
+const b64Blob = (b64, type = "image/jpeg") => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type }); };
+
+function tile(label, cls, onClick, text) {
+  const b = el("button", "ptile " + cls); b.type = "button"; b.append(el("span", "ico", text), el("span", "lab", label)); b.onclick = onClick; return b;
+}
+function updateDone() { const n = sel.size; $("pick-done").disabled = !n; $("pick-done").textContent = n ? `Add ${n} photo${n > 1 ? "s" : ""}` : "Add"; }
+
+async function takePhoto() {
   $("photo-sheet").close();
   if (native()) {
     try {
-      const paths = source === "camera"
-        ? [(await Capacitor.nativePromise("Camera", "getPhoto", { quality: 85, resultType: "uri", source: "CAMERA", correctOrientation: true })).webPath]
-        : (await Capacitor.nativePromise("Camera", "pickImages", { quality: 85, limit: 10 })).photos.map((p) => p.webPath);
-      return addFiles(await Promise.all(paths.map((u) => fetch(u).then((r) => r.blob()))));
+      const r = await Capacitor.nativePromise("Camera", "getPhoto", { quality: 85, resultType: "uri", source: "CAMERA", correctOrientation: true });
+      return addFiles([await (await fetch(r.webPath)).blob()]);
     } catch (e) {
       if (/cancel/i.test(String(e && (e.message || e)))) return $("add-photo").focus();
-      // otherwise fall through to the browser pickers
     }
   }
-  $(source === "camera" ? "photo-camera" : "photo-gallery").click();
+  $("photo-camera").click();
 }
-$("pick-camera").onclick = () => addFrom("camera");
-$("pick-gallery").onclick = () => addFrom("gallery");
+async function browseAll() {
+  $("photo-sheet").close();
+  if (native()) {
+    try {
+      const r = await Capacitor.nativePromise("Camera", "pickImages", { quality: 85, limit: 10 });
+      return addFiles(await Promise.all(r.photos.map((p) => fetch(p.webPath).then((x) => x.blob()))));
+    } catch (e) {
+      if (/cancel/i.test(String(e && (e.message || e)))) return $("add-photo").focus();
+    }
+  }
+  $("photo-gallery").click();
+}
+async function openSheet() {
+  sel.clear(); updateDone(); $("pick-done").hidden = !nativeRecent();
+  const grid = $("photo-grid"), note = $("sheet-note");
+  grid.replaceChildren(tile("Camera", "cam", takePhoto, "●"), tile("Browse", "browse", browseAll, "☰"));
+  note.textContent = "";
+  $("photo-sheet").showModal();
+  if (!nativeRecent()) return;
+  note.textContent = "Loading recent photos...";
+  try {
+    const r = await Capacitor.nativePromise("RecentPhotos", "recent", { limit: 45, size: 240 });
+    note.textContent = r.photos.length ? "" : "No recent photos found.";
+    r.photos.forEach((ph, i) => {
+      const b = el("button", "ptile pic"); b.type = "button"; b.setAttribute("aria-pressed", "false"); b.setAttribute("aria-label", `Photo ${i + 1}`);
+      const img = el("img"); img.src = ph.thumb; img.alt = ""; const mark = el("span", "tick", "✓"); b.append(img, mark);
+      b.onclick = () => { const on = !sel.has(ph.id); on ? sel.add(ph.id) : sel.delete(ph.id); b.setAttribute("aria-pressed", String(on)); updateDone(); };
+      grid.append(b);
+    });
+  } catch { note.textContent = "Allow photo access to see your recent photos here, or use Browse."; }
+}
+$("pick-done").onclick = async () => {
+  const ids = [...sel]; $("photo-sheet").close();
+  const files = [];
+  for (const id of ids) {
+    try { const r = await Capacitor.nativePromise("RecentPhotos", "full", { uri: id, size: 1600 }); files.push(b64Blob(r.data)); } catch { /* skip an unreadable photo */ }
+  }
+  if (files.length) addFiles(files);
+};
 $("pick-cancel").onclick = () => $("photo-sheet").close();
+$("photo-sheet").addEventListener("close", () => $("add-photo") && $("add-photo").focus());
 ["photo-camera", "photo-gallery"].forEach((id) => $(id).addEventListener("change", async (ev) => { await addFiles(ev.target.files); ev.target.value = ""; }));
 
 // ---------- direction and stops ----------
@@ -479,8 +564,7 @@ async function useLocation(which) {
   }
   pick.edited = false; $("from").value = String(pick.from); $("to").value = String(pick.to);
   renderDirs(); applyStops(); saveDraft();
-  const n = nearest(pick.dir);
-  m.textContent = `Nearest stop on this direction: ${stopName(pick.data[pick.dir].s[n.i])} (${Math.round(n.m)} m).`;
+  m.textContent = "";
 }
 $("gps-from").onclick = () => useLocation("from");
 $("gps-to").onclick = () => useLocation("to");

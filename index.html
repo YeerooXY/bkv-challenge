@@ -80,10 +80,18 @@
   </section>
 </main>
 
-<dialog id="photo-sheet" aria-label="Add a photo">
-  <button type="button" id="pick-camera" class="primary">Take a photo</button>
-  <button type="button" id="pick-gallery">Choose from gallery</button>
-  <button type="button" id="pick-cancel">Cancel</button>
+<dialog id="photo-sheet" class="sheet" aria-label="Add photos">
+  <div class="grab" aria-hidden="true"></div>
+  <div class="sheet-head"><h2>Add photos</h2><button type="button" id="pick-cancel" class="plain" aria-label="Close">Close</button></div>
+  <p id="sheet-note" class="sub" role="status"></p>
+  <div id="photo-grid" class="photo-grid"></div>
+  <div class="row"><button type="button" id="pick-done" class="primary" disabled>Add</button></div>
+</dialog>
+
+<dialog id="detail" class="sheet" aria-labelledby="detail-title">
+  <div class="grab" aria-hidden="true"></div>
+  <div class="sheet-head"><h2 id="detail-title"></h2><button type="button" id="detail-close" class="plain">Close</button></div>
+  <div id="detail-body"></div>
 </dialog>
 
 <nav id="tabs" aria-label="Views">
