@@ -26,7 +26,9 @@ let editing = null; // entry being edited
 let photos = []; // [{blob, url}] attached to the form
 const filters = { lines: "ALL", plates: "ALL", model: "", status: { lines: "all", plates: "all" } };
 const PAGE = 240, shown = { lines: PAGE, plates: PAGE };
-let serviceData = {}; // line -> trips per hour {wd, sa, su}
+let timetable = {}; // line -> [direction -> {day: {hour: [minutes]}}]
+let modelPhotos = {}; // model -> {file, credit, page}
+let modelCount = {}; // model -> number of vehicles
 let routeNames = {}; // BKK internal route id -> public line number
 
 // ---------- IndexedDB ----------
@@ -105,8 +107,8 @@ async function loadCatalog() {
     try { return await (await fetch("data/catalog.json")).json(); } catch { return { lines: [], plates: [] }; }
   }
 }
-async function loadService() {
-  try { return await (await fetch("data/service.json")).json(); } catch { return {}; }
+async function loadJson(path, fallback) {
+  try { return await (await fetch(path)).json(); } catch { return fallback; }
 }
 async function loadStops() {
   try { return await (await fetch("data/stops.json")).json(); } catch { return { stops: [], lines: {} }; }
@@ -228,16 +230,51 @@ function renderChips(kind) {
 }
 
 const byName = (a, b) => a.localeCompare(b, "hu", { numeric: true });
+const TIER_NAMES = ["Common", "Uncommon", "Rare", "Epic", "Legendary"];
+const tierOf = (o) => Math.min(4, Math.max(0, o.r || 0));
+function rarityWhy(kind, o) {
+  const why = [];
+  if (kind === "plate") {
+    if (/heritage/i.test(o.m || "")) why.push("Heritage vehicle");
+    const n = modelCount[o.m];
+    if (n && n <= 60) why.push(n === 1 ? "The only one of its model" : `Only ${n} of this model exist`);
+    const days = o.ll ? Math.floor((Date.now() - Date.parse(o.ll)) / 86400000) : 0;
+    if (days >= 45) why.push(`Last signed in ${days} days ago`);
+  } else {
+    const t = { night: "Night line", out2: "Starts and ends outside Budapest", out1: "Reaches outside Budapest", few: "Only a handful of trips a day" };
+    (o.rw || []).forEach((c) => t[c] && why.push(t[c]));
+  }
+  return why;
+}
+// Simple vehicle drawings, used where there is no photo of the model.
+function vehicleArt(o) {
+  const NS = "http://www.w3.org/2000/svg", name = (o.m || "").toLowerCase(), type = typeOf(o.type);
+  const kind = type === "TRAM" ? "tram" : type === "TROLLEYBUS" ? "trolley" : type === "HEV" ? "hev" : /accessible|master|minibus|mb515/.test(name) ? "van" : /articulated|c18|a23|citaro g|conecto g|c2g|7700|ag3|newag|b19|8900/.test(name) && !/solo/.test(name) ? "artic" : /midi|medio|atak|urbino 8/.test(name) ? "midi" : "solo";
+  const svg = document.createElementNS(NS, "svg"); svg.setAttribute("viewBox", "0 0 120 60"); svg.setAttribute("class", "art"); svg.setAttribute("aria-hidden", "true");
+  const add = (tag, attrs) => { const e = document.createElementNS(NS, tag); Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v)); svg.append(e); return e; };
+  const wheel = (x) => add("circle", { cx: x, cy: 46, r: 6, class: "wheel" });
+  const windows = (x0, x1) => { for (let x = x0; x + 9 <= x1; x += 12) add("rect", { x, y: 19, width: 9, height: 10, rx: 2, class: "win" }); };
+  if (kind === "artic") { add("rect", { x: 4, y: 14, width: 62, height: 32, rx: 6, class: "body" }); add("rect", { x: 66, y: 18, width: 6, height: 24, class: "bellows" }); add("rect", { x: 72, y: 14, width: 44, height: 32, rx: 6, class: "body" }); windows(10, 62); windows(76, 112); [20, 52, 94].forEach(wheel); }
+  else if (kind === "tram") { add("rect", { x: 2, y: 12, width: 116, height: 34, rx: 8, class: "body" }); windows(10, 112); add("rect", { x: 40, y: 6, width: 40, height: 4, rx: 2, class: "bellows" }); [22, 98].forEach(wheel); }
+  else if (kind === "trolley") { add("rect", { x: 8, y: 16, width: 104, height: 30, rx: 6, class: "body" }); windows(14, 108); add("path", { d: "M30 16 L56 4 M44 16 L70 4", class: "pole" }); [30, 90].forEach(wheel); }
+  else if (kind === "hev") { add("rect", { x: 4, y: 14, width: 112, height: 32, rx: 10, class: "body" }); windows(14, 104); add("rect", { x: 100, y: 19, width: 12, height: 12, rx: 3, class: "win" }); [24, 96].forEach(wheel); }
+  else if (kind === "van") { add("rect", { x: 22, y: 20, width: 76, height: 26, rx: 7, class: "body" }); windows(30, 90); [40, 82].forEach(wheel); }
+  else if (kind === "midi") { add("rect", { x: 14, y: 18, width: 92, height: 28, rx: 6, class: "body" }); windows(20, 100); [34, 88].forEach(wheel); }
+  else { add("rect", { x: 8, y: 15, width: 104, height: 31, rx: 6, class: "body" }); windows(14, 108); [28, 92].forEach(wheel); }
+  return svg;
+}
 const STATE_TEXT = { done: "ridden", partial: "partly ridden, not end to end", todo: "not ridden yet" };
 function collTile(kind, o, state) {
-  const b = el("button", `tile ${kind === "lines" ? "line" : "plate"} ${state}`); b.type = "button";
+  const tier = tierOf(o);
+  const b = el("button", `tile ${kind === "lines" ? "line" : "plate"} ${state}${tier ? " r" + tier : ""}`); b.type = "button";
   const [bg, fg] = kind === "lines" ? lineColors(o) : TYPE_COLOR[typeOf(o.type)];
   b.style.setProperty("--tc", "#" + bg); b.style.setProperty("--tf", "#" + fg);
   b.append(el("span", "num", kind === "lines" ? o.id : o.plate));
   if (kind === "plates") b.append(el("span", "mdl", o.m || TYPES[typeOf(o.type)]));
   if (kind === "plates" && o.plate.length > 12) b.classList.add("long");
   if (state !== "todo") b.append(el("span", "mark", state === "done" ? "\u2713" : "\u00BD"));
-  b.setAttribute("aria-label", `${kind === "lines" ? "Line " + o.id : "Plate " + o.plate}, ${STATE_TEXT[state]}`);
+  if (tier) b.append(el("span", "gem"));
+  b.setAttribute("aria-label", `${kind === "lines" ? "Line " + o.id : "Plate " + o.plate}, ${tier ? TIER_NAMES[tier].toLowerCase() + ", " : ""}${STATE_TEXT[state]}`);
   b.onclick = () => showDetail(kind === "lines" ? "line" : "plate", o);
   return b;
 }
@@ -253,34 +290,58 @@ function hoursChart(h, unit) {
 const dayType = () => { const d = budapestNow().getDay(); return d === 0 ? "su" : d === 6 ? "sa" : "wd"; };
 
 function timetableSection(id) {
-  const svc = serviceData[id];
-  if (!svc) return el("p", "sub", "No timetable data for this line.");
-  const box = el("div"), chips = el("div", "chips"), chart = el("div"), sum = el("p", "sub");
-  let day = dayType();
+  const dirs = stopData.lines[id] || [], tt = timetable[id] || [];
+  if (!tt.length) return el("p", "sub", "No timetable data for this line.");
+  const box = el("div"), pick1 = el("div", "chips"), days = el("div", "chips"), table = el("div", "tt");
+  const usable = tt.map((d, i) => i).filter((i) => Object.values(tt[i]).some((day) => Object.keys(day).length));
+  let di = usable[0] ?? 0, day = dayType();
+  const hh = (h) => String(h).padStart(2, "0");
   const paint = () => {
-    chips.replaceChildren(...[["wd", "Weekday"], ["sa", "Saturday"], ["su", "Sunday"]].map(([k, t]) => {
-      const b = el("button", "", t); b.type = "button"; b.setAttribute("aria-pressed", String(k === day));
-      b.onclick = () => { day = k; paint(); chips.querySelector("[aria-pressed=true]").focus(); };
-      return b;
+    pick1.replaceChildren(...usable.map((i) => {
+      const from = dirs[i] ? stopName(dirs[i].s[0]) : "Start";
+      const b = el("button", "", usable.length > 1 ? `From ${from}` : `Departs ${from}`); b.type = "button"; b.setAttribute("aria-pressed", String(i === di));
+      b.onclick = () => { di = i; paint(); pick1.querySelector("[aria-pressed=true]").focus(); }; return b;
     }));
-    const h = svc[day], total = h.reduce((a, b) => a + b, 0), used = h.map((v, i) => [v, i]).filter((x) => x[0] > 0);
-    chart.replaceChildren(hoursChart(h, "trips"));
-    const hh = (i) => String(i).padStart(2, "0") + ":00";
-    const peak = used.slice().sort((a, b) => b[0] - a[0])[0];
-    sum.textContent = total ? `${total} trips. First around ${hh(used[0][1])}, last around ${hh(used[used.length - 1][1])}, busiest ${hh(peak[1])} (${peak[0]} an hour).` : "No service on this day.";
+    days.replaceChildren(...[["wd", "Weekday"], ["sa", "Saturday"], ["su", "Sunday"]].map(([k, t]) => {
+      const b = el("button", "", t); b.type = "button"; b.setAttribute("aria-pressed", String(k === day));
+      b.onclick = () => { day = k; paint(); days.querySelector("[aria-pressed=true]").focus(); }; return b;
+    }));
+    const hours = (tt[di] && tt[di][day]) || {}, keys = Object.keys(hours).map(Number).sort((a, b) => ((a < 4 ? a + 24 : a) - (b < 4 ? b + 24 : b)));
+    const now = budapestNow(), isToday = day === dayType();
+    let marked = false;
+    table.replaceChildren(...(keys.length ? keys.map((h) => {
+      const row = el("div", "ttrow"); row.append(el("span", "tth", hh(h)));
+      const mins = el("span", "ttm");
+      hours[h].forEach((m) => {
+        const t = el("span", "ttmin", String(m).padStart(2, "0"));
+        if (isToday && !marked && (h > now.getHours() || (h === now.getHours() && m >= now.getMinutes()))) { t.classList.add("next"); marked = true; t.setAttribute("aria-label", `${hh(h)}:${String(m).padStart(2, "0")}, next departure`); }
+        mins.append(t);
+      });
+      row.append(mins); return row;
+    }) : [el("p", "sub", "No departures on this day.")]));
+    const to = dirs[di] ? dirs[di].to : "";
+    table.prepend(el("p", "sub", `Departures${to ? " towards " + to : ""}. Hour, then minutes.`));
   };
-  paint(); box.append(chips, chart, sum); return box;
+  paint(); box.append(pick1, days, table); return box;
 }
 
 function showDetail(kind, o) {
   const body = $("detail-body"); body.replaceChildren();
   const hours = (o.h || []).length === 24 ? o.h : null, seen = hours ? hours.reduce((a, b) => a + b, 0) : 0;
   const section = (title, node) => { body.append(el("h3", "", title), node); };
+  const tierBox = () => {
+    const t = tierOf(o), box = el("div", `tierbox r${t}`);
+    box.append(el("strong", "", TIER_NAMES[t]));
+    const why = rarityWhy(kind, o);
+    if (why.length) { const ul = el("ul", "plain"); why.forEach((w) => ul.append(el("li", "", w))); box.append(ul); }
+    return box;
+  };
   if (kind === "plate") {
     $("detail-title").textContent = o.plate;
     const ride = entries.find((e) => normPlate(e.plate) === o.plate);
     body.append(badge(TYPES[typeOf(o.type)], TYPE_COLOR[typeOf(o.type)]), el("span", "sub", o.m ? "  " + o.m : ""), el("p", "", ride ? `Ridden on ${new Date(ride.time).toLocaleDateString()} (line ${ride.line}).` : "Not ridden yet."));
     const ls = el("div", "items"); (o.lines || []).forEach((id) => ls.append(lineBadge(id)));
+    if (tierOf(o) > 0) body.append(tierBox());
     section("Seen on lines", (o.lines || []).length ? ls : el("p", "sub", "No line seen yet."));
     const live = el("div", "live"), lb = el("button", "", "Check if it is running now"); lb.type = "button";
     const out = el("p", "", ""); out.setAttribute("role", "status");
@@ -297,10 +358,11 @@ function showDetail(kind, o) {
     const dd = stopData.lines[o.id], whole = ride.some(rideCoversLine);
     body.append(el("p", "", whole ? "Ridden end to end." : ride.length ? `Ridden ${ride.length} time${ride.length > 1 ? "s" : ""}, but not end to end yet.` : "Not ridden yet."));
     if (!whole && dd) body.append(el("p", "sub", `Ride from ${stopName(dd[0].s[0])} to ${stopName(dd[0].s[dd[0].s.length - 1])}, either way, to complete it.`));
+    if (tierOf(o) > 0) body.append(tierBox());
     const dirs = stopData.lines[o.id] || [], ul = el("ul", "plain");
     dirs.forEach((d) => ul.append(el("li", "", `To ${d.to}: ${d.s.length} stops`)));
     section("Directions", dirs.length ? ul : el("p", "sub", "No stop list for this line."));
-    section("Timetable: trips per hour", timetableSection(o.id));
+    section("Timetable", timetableSection(o.id));
   }
   $("detail").showModal();
 }
@@ -328,15 +390,28 @@ async function liveStatus(plate, out, btn) {
 $("detail-close").onclick = () => $("detail").close();
 
 function fillModels() {
-  const cleared = clearedPlates(), counts = {};
-  allPlates().forEach((p) => { if (p.m && !cleared.has(p.plate) && (filters.plates === "ALL" || typeOf(p.type) === filters.plates)) counts[p.m] = (counts[p.m] || 0) + 1; });
-  if (filters.model && !counts[filters.model]) filters.model = "";
-  const sel = $("model-plates");
-  sel.replaceChildren(...[["", `All models (${Object.values(counts).reduce((a, b) => a + b, 0)})`], ...Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([m, n]) => [m, `${m} (${n})`])]
-    .map(([v, t]) => { const o = el("option", "", t); o.value = v; return o; }));
-  sel.value = filters.model;
+  const done = clearedPlates(), byModel = {};
+  allPlates().forEach((p) => {
+    if (!p.m || (filters.plates !== "ALL" && typeOf(p.type) !== filters.plates)) return;
+    const g = (byModel[p.m] ||= { total: 0, left: 0, type: p.type, sample: p }); g.total++; if (!done.has(p.plate)) g.left++;
+  });
+  if (filters.model && !byModel[filters.model]) filters.model = "";
+  const box = $("model-cards");
+  const card = (key, title, sub, art, pressed) => {
+    const b = el("button", "mcard"); b.type = "button"; b.setAttribute("aria-pressed", String(pressed));
+    const a = el("span", "mart"); a.append(art); b.append(a, el("strong", "", title), el("span", "sub", sub));
+    b.onclick = () => { filters.model = key; shown.plates = PAGE; renderMissing("plates"); box.querySelector("[aria-pressed=true]").focus(); box.querySelector("[aria-pressed=true]").scrollIntoView({ inline: "center", block: "nearest" }); };
+    return b;
+  };
+  const photo = (m, sample) => {
+    const ph = modelPhotos[m];
+    if (ph) { const i = el("img"); i.src = "data/models/" + ph.file; i.alt = ""; i.loading = "lazy"; return i; }
+    return vehicleArt(sample);
+  };
+  const total = Object.values(byModel).reduce((a, g) => a + g.left, 0);
+  const all = card("", "All models", `${total} left`, vehicleArt({ type: filters.plates === "ALL" ? "BUS" : filters.plates, m: "" }), !filters.model);
+  box.replaceChildren(all, ...Object.entries(byModel).sort((a, b) => b[1].total - a[1].total).map(([m, g]) => card(m, m, `${g.left} of ${g.total} left`, photo(m, g.sample), filters.model === m)));
 }
-$("model-plates").onchange = () => { filters.model = $("model-plates").value; shown.plates = PAGE; renderMissing("plates"); };
 
 function renderMissing(kind) {
   renderChips(kind);
@@ -713,6 +788,30 @@ async function useLocation(which) {
 $("gps-from").onclick = () => useLocation("from");
 $("gps-to").onclick = () => useLocation("to");
 
+// ---------- catches ----------
+function newCatches(beforeL, beforeP) {
+  const al = clearedLines(), ap = clearedPlates(), items = [];
+  allLines().forEach((l) => { if (al.has(l.id) && !beforeL.has(l.id)) items.push({ kind: "lines", o: l, tier: tierOf(l) }); });
+  allPlates().forEach((p) => { if (ap.has(p.plate) && !beforeP.has(p.plate)) items.push({ kind: "plates", o: p, tier: tierOf(p) }); });
+  const best = items.reduce((m, i) => Math.max(m, i.tier), 0);
+  const names = items.map((i) => (i.kind === "lines" ? "line " + i.o.id : "plate " + i.o.plate));
+  return { items, best, text: items.length ? `Saved. Collected ${names.join(", ")}.` : "Saved." };
+}
+function showCatch(c) {
+  const d = $("catch"), top = c.items.filter((i) => i.tier === c.best).slice(0, 3);
+  const card = el("div", `catchcard r${c.best}`);
+  card.append(el("div", "shine"), el("p", "catch-kicker", `${TIER_NAMES[c.best]} catch`));
+  const tiles = el("div", "catch-tiles"); top.forEach((i) => tiles.append(collTile(i.kind, i.o, "done"))); card.append(tiles);
+  const why = [...new Set(top.flatMap((i) => rarityWhy(i.kind === "lines" ? "line" : "plate", i.o)))];
+  if (why.length) card.append(el("p", "catch-why", why.join(". ") + "."));
+  for (let i = 0; i < 14; i++) { const p = el("span", "spark"); p.style.setProperty("--x", (6 + Math.round(Math.random() * 88)) + "%"); p.style.setProperty("--d", (Math.random() * 1.4).toFixed(2) + "s"); p.style.setProperty("--s", (6 + Math.round(Math.random() * 8)) + "px"); card.append(p); }
+  const ok = el("button", "primary", "Nice"); ok.type = "button"; ok.onclick = () => d.close(); card.append(ok);
+  d.replaceChildren(card); d.showModal(); ok.focus();
+  if (navigator.vibrate) navigator.vibrate(c.best >= 4 ? [80, 50, 80, 50, 220] : c.best === 3 ? [70, 40, 160] : [60]);
+}
+$("catch").addEventListener("click", (e) => { if (e.target === $("catch")) $("catch").close(); });
+$("catch").addEventListener("close", () => setTimeout(() => $("line").focus(), 30));
+
 // ---------- GPS proof ----------
 let trackPts = [], watchId = null; // [lat, lon, epoch seconds]
 const decimate = (a, n = 300) => (a.length <= n ? a.slice() : a.filter((_, i) => i % Math.ceil(a.length / n) === 0 || i === a.length - 1));
@@ -787,11 +886,13 @@ $("form").addEventListener("submit", async (ev) => {
     track: decimate(trackPts), stops: parseStops($("stops").value), notes: $("notes").value.trim(), photos: await Promise.all(photos.map((p) => packPhoto(p.blob))),
   };
   if (editing) entry.id = editing.id;
+  const beforeL = clearedLines(), beforeP = clearedPlates();
   try { await put("entries", entry); } catch { return msg("Could not save on this device (storage blocked or full).", true); }
   await reload(); await clearDraft();
   resetForm();
-  msg("Saved.", false);
-  $("line").focus();
+  const caught = newCatches(beforeL, beforeP);
+  msg(caught.text, false);
+  if (caught.best >= 2) showCatch(caught); else $("line").focus();
 });
 
 $("cancel-edit").onclick = () => { resetForm(); show("log"); $("line").focus(); };
@@ -849,13 +950,21 @@ document.querySelectorAll("dialog.sheet").forEach((d) => d.addEventListener("cli
   if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) d.close();
 }));
 
+function showCredits() {
+  const list = $("credits-list"), items = Object.entries(modelPhotos);
+  if (!items.length) { $("credits").hidden = true; return; }
+  list.replaceChildren(...items.map(([m, ph]) => { const p = el("p", "sub", `${m}: ${ph.credit}`); return p; }));
+}
+
 // ---------- boot ----------
 document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => { show(b.dataset.view); b.focus(); }));
 ["lines", "plates"].forEach((k) => $("q-" + k).addEventListener("input", () => { shown[k] = PAGE; renderMissing(k); }));
 
 (async function init() {
   db = await openDb();
-  [catalog, stopData, serviceData] = await Promise.all([loadCatalog(), loadStops(), loadService()]);
+  [catalog, stopData, timetable, modelPhotos] = await Promise.all([loadCatalog(), loadStops(), loadJson("data/timetable.json", {}), loadJson("data/model-photos.json", {})]);
+  modelCount = {}; catalog.plates.forEach((p) => { if (p.m) modelCount[p.m] = (modelCount[p.m] || 0) + 1; });
+  showCredits();
   try { const rt = (await (await fetch("data/routes.json")).json()).routes; routeNames = Object.fromEntries(Object.entries(rt).map(([id, r]) => [id, r.name])); } catch { /* live status shows the route id */ }
   showVersion();
   await reload();

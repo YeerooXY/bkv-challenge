@@ -68,7 +68,7 @@
   <section id="view-plates" class="view" aria-labelledby="h-plates" hidden>
     <h1 id="h-plates" tabindex="-1">Plates</h1>
     <p id="sum-plates" class="sub" role="status"></p>
-    <div class="tools"><input type="search" id="q-plates" placeholder="Search plates" aria-label="Search plates"><div class="chips" data-for="plates"></div><div id="seg-plates" class="seg" role="group" aria-label="Show"></div><label for="model-plates" class="lbl">Model</label><select id="model-plates"></select></div>
+    <div class="tools"><input type="search" id="q-plates" placeholder="Search plates" aria-label="Search plates"><div class="chips" data-for="plates"></div><div id="seg-plates" class="seg" role="group" aria-label="Show"></div><div id="model-cards" class="mcards" role="group" aria-label="Filter by vehicle model"></div></div>
     <div id="list-plates"></div>
   </section>
 
@@ -86,6 +86,7 @@
     <p id="version" class="sub"></p>
     <div class="row"><button id="update-btn" type="button">Check for updates</button><a id="update-link" class="btn primary" hidden target="_blank" rel="noopener">Download update</a></div>
     <p id="update-msg" role="status" aria-live="polite" class="sub"></p>
+    <details id="credits"><summary>Photo credits</summary><div id="credits-list" class="sub"></div></details>
     <h2>Backup</h2>
     <div class="row"><button id="export" type="button">Export JSON</button><button id="import-btn" type="button">Import JSON</button><input id="import" type="file" accept="application/json" hidden></div>
   </section>
@@ -103,6 +104,8 @@
   <div id="photo-grid" class="photo-grid"></div>
   <div class="row"><button type="button" id="pick-done" class="primary" disabled>Add</button></div>
 </dialog>
+
+<dialog id="catch" class="catch" aria-label="New catch"></dialog>
 
 <dialog id="detail" class="sheet" aria-labelledby="detail-title">
   <div class="grab" aria-hidden="true"></div>

@@ -182,3 +182,52 @@ ul.plain{padding-left:1.1rem;margin:.3rem 0}
 #tabs button[aria-current=page]{color:var(--fg)}
 #tabs button[aria-current=page] .pill{background:var(--accent-soft);color:var(--accent)}
 @media (prefers-reduced-motion:reduce){#tabs .pill{transition:none}}
+
+/* ---------- rarity ---------- */
+:root{--r1:#3fa968;--r2:#2f7df6;--r3:#a24df0;--r4:#f2b200}
+.r1{--rc:var(--r1)}.r2{--rc:var(--r2)}.r3{--rc:var(--r3)}.r4{--rc:var(--r4)}
+.tile.r1,.tile.r2,.tile.r3,.tile.r4{border-color:var(--rc)}
+.tile .gem{position:absolute;left:8px;bottom:8px;width:10px;height:10px;background:var(--rc);transform:rotate(45deg);border-radius:2px}
+.tile.r1.done,.tile.r2.done,.tile.r3.done,.tile.r4.done{box-shadow:0 0 0 2px var(--rc),0 6px 22px color-mix(in srgb,var(--rc) 55%,transparent)}
+.tile.r4.todo::after,.tile.r4.partial::after{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 35%,rgba(255,214,0,.35) 50%,transparent 65%);transform:translateX(-120%);animation:sheen 3.6s ease-in-out infinite;pointer-events:none}
+@keyframes sheen{0%,60%{transform:translateX(-120%)}100%{transform:translateX(120%)}}
+.tile.r4.done .gem,.tile.r3.done .gem{background:var(--tf)}
+.tierbox{border-radius:var(--r);padding:.7rem .9rem;margin:.8rem 0;background:color-mix(in srgb,var(--rc) 14%,var(--card));border:2px solid var(--rc)}
+.tierbox strong{color:var(--rc);text-transform:uppercase;letter-spacing:.06em;font-size:.85rem}
+.tierbox ul{margin:.3rem 0 0;color:var(--fg)}
+
+/* ---------- catch celebration ---------- */
+dialog.catch{border:0;background:transparent;padding:0;margin:auto;max-width:92vw;overflow:visible}
+dialog.catch::backdrop{background:rgba(0,0,0,.6)}
+.catchcard{position:relative;overflow:hidden;width:min(86vw,360px);text-align:center;background:var(--card);border-radius:28px;padding:1.4rem 1.2rem 1.2rem;border:3px solid var(--rc,var(--accent));box-shadow:0 0 38px color-mix(in srgb,var(--rc,var(--accent)) 60%,transparent);animation:pop .45s cubic-bezier(.2,1.4,.4,1)}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:none;opacity:1}}
+.catch-kicker{margin:.1rem 0 .9rem;font-size:1.25rem;font-weight:900;text-transform:uppercase;letter-spacing:.08em;color:var(--rc,var(--accent))}
+.catch-tiles{display:flex;gap:10px;justify-content:center;margin-bottom:.8rem}.catch-tiles .tile{width:96px;flex:none}
+.catch-why{color:var(--muted);margin:.2rem 0 1rem}
+.shine{position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,color-mix(in srgb,var(--rc,#fff) 35%,transparent) 50%,transparent 70%);transform:translateX(-120%);animation:sheen2 1.4s .2s ease-out 1 forwards;pointer-events:none}
+@keyframes sheen2{to{transform:translateX(120%)}}
+.spark{position:absolute;bottom:-12px;left:var(--x);width:var(--s);height:var(--s);border-radius:50%;background:var(--rc,var(--accent));opacity:0;animation:rise2 2.2s var(--d) ease-out forwards;pointer-events:none}
+@keyframes rise2{0%{opacity:.9;transform:translateY(0)}100%{opacity:0;transform:translateY(-320px)}}
+@media (prefers-reduced-motion:reduce){.tile.r4::after,.shine,.spark,.catchcard{animation:none}.spark{display:none}}
+
+/* ---------- model cards ---------- */
+.mcards{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 8px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+.mcard{flex:none;width:132px;min-height:0;padding:0;border-radius:var(--r);background:var(--card);box-shadow:var(--shadow);text-align:left;display:flex;flex-direction:column;overflow:hidden;scroll-snap-align:start;border:2px solid transparent;font-weight:400}
+.mcard[aria-pressed=true]{border-color:var(--accent)}
+.mcard .mart{display:block;aspect-ratio:4/3;background:var(--card2);position:relative}
+.mcard .mart img{width:100%;height:100%;object-fit:cover;display:block}
+.mcard strong{padding:.45rem .6rem 0;font-size:.85rem;line-height:1.2}
+.mcard .sub{padding:0 .6rem .55rem;font-size:.75rem;margin:0}
+.art{width:100%;height:100%;display:block;padding:10%}
+.art .body{fill:var(--accent)}.art .win{fill:var(--card)}.art .wheel{fill:var(--fg)}.art .bellows{fill:var(--muted)}.art .pole{stroke:var(--muted);stroke-width:2;fill:none;stroke-linecap:round}
+
+/* ---------- timetable ---------- */
+.tt{margin-top:.6rem}
+.ttrow{display:flex;gap:.7rem;padding:.45rem 0;border-top:1px solid var(--line);align-items:flex-start}
+.tth{flex:none;width:2rem;font-weight:800;font-variant-numeric:tabular-nums}
+.ttm{display:flex;flex-wrap:wrap;gap:.3rem .45rem}
+.ttmin{font-variant-numeric:tabular-nums;min-width:1.7rem;text-align:center;padding:.1rem .3rem;border-radius:8px;background:var(--card2)}
+.ttmin.next{background:var(--accent);color:var(--accent-fg);font-weight:800}
+
+.catchcard>button,.catchcard .catch-tiles,.catchcard>p{position:relative;z-index:2}
+.mcards{align-items:flex-start}

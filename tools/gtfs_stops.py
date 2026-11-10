@@ -12,6 +12,7 @@ from pathlib import Path
 
 OUT = Path(__file__).parents[1] / "data" / "stops.json"
 SERVICE = Path(__file__).parents[1] / "data" / "service.json"
+TIMETABLE = Path(__file__).parents[1] / "data" / "timetable.json"
 # Typical days used for "trips per hour": a Tuesday, a Saturday and a Sunday without holidays.
 DAYS = {"wd": "20261117", "sa": "20261121", "su": "20261122"}
 PRIORITY = ["SUBWAY", "TRAM", "TROLLEYBUS", "HEV", "FERRY", "BUS", "OTHER"]
@@ -43,7 +44,7 @@ def build(z, routes):
         line = line_of.get(t["route_id"])
         if line:
             trips[(line, t["direction_id"] or "0")].append((t["trip_id"], t["trip_headsign"]))
-            trip_info[t["trip_id"]] = (line, t["service_id"])
+            trip_info[t["trip_id"]] = (line, t["service_id"], t["direction_id"] or "0")
     wanted = {}  # trip_id -> (line, direction, headsign)
     for key, lst in trips.items():
         step = max(1, len(lst) // SAMPLES)
@@ -59,14 +60,16 @@ def build(z, routes):
         if tid in trip_info:
             seq = int(r["stop_sequence"])
             if tid not in first or seq < first[tid][0]:
-                first[tid] = (seq, int(r["departure_time"][:2]) % 24)
+                first[tid] = (seq, int(r["departure_time"][:2]) % 24, int(r["departure_time"][3:5]))
 
     service = defaultdict(lambda: {k: [0] * 24 for k in DAYS})
-    for tid, (_, hour) in first.items():
-        line, sid = trip_info[tid]
+    deps = defaultdict(lambda: {k: defaultdict(list) for k in DAYS})  # (line, direction) -> day -> hour -> [minutes]
+    for tid, (_, hour, minute) in first.items():
+        line, sid, direction = trip_info[tid]
         for k in DAYS:
             if sid in active[k]:
                 service[line][k][hour] += 1
+                deps[(line, direction)][k][hour].append(minute)
     SERVICE.write_text(json.dumps(service, separators=(",", ":")), encoding="utf-8")
 
     longest = {}  # (line, direction) -> (headsign, [stop ids])
@@ -91,4 +94,10 @@ def build(z, routes):
             out.append(index[sid])
         lines[line].append({"to": head, "s": out})
     OUT.write_text(json.dumps({"stops": stops, "lines": lines}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    # Timetable, in the same direction order as stops.json: {line: [{day: {hour: [minutes]}} per direction]}
+    timetable = {}
+    for line in lines:
+        dirs = sorted(d for (l, d) in longest if l == line)
+        timetable[line] = [{k: {str(h): sorted(m) for h, m in sorted(deps[(line, d)][k].items())} for k in DAYS} for d in dirs]
+    TIMETABLE.write_text(json.dumps(timetable, separators=(",", ":")), encoding="utf-8")
     return len(lines), len(stops)
