@@ -24,7 +24,7 @@ let entries = [];
 let extras = [];
 let editing = null; // entry being edited
 let photos = []; // [{blob, url}] attached to the form
-const filters = { lines: "ALL", plates: "ALL", model: "", status: { lines: "all", plates: "all" } };
+const filters = { lines: "ALL", plates: "ALL", model: "", sort: "num", rarity: { lines: -1, plates: -1 }, allModels: false, status: { lines: "all", plates: "all" } };
 const PAGE = 240, shown = { lines: PAGE, plates: PAGE };
 let timetable = {}; // line -> [direction -> {day: {hour: [minutes]}}]
 let modelPhotos = {}; // model -> {file, credit, page}
@@ -222,6 +222,13 @@ function renderChips(kind) {
     b.onclick = () => { filters[kind] = k; shown[kind] = PAGE; renderMissing(kind); document.querySelector(`.chips[data-for="${kind}"] button[aria-pressed=true]`).focus(); };
     return b;
   }));
+  if (kind === "plates") {
+    $("sort-plates").replaceChildren(...[["num", "By number"], ["idle", "Out the longest"]].map(([k, label]) => {
+      const b = el("button", "", label); b.type = "button"; b.setAttribute("aria-pressed", String(filters.sort === k));
+      b.onclick = () => { filters.sort = k; shown.plates = PAGE; renderMissing("plates"); $("sort-plates").querySelector("[aria-pressed=true]").focus(); };
+      return b;
+    }));
+  }
   $("seg-" + kind).replaceChildren(...[["all", "All"], ["todo", "To ride"], ["done", "Done"]].map(([k, label]) => {
     const b = el("button", "", label); b.type = "button"; b.setAttribute("aria-pressed", String(filters.status[kind] === k));
     b.onclick = () => { filters.status[kind] = k; shown[kind] = PAGE; renderMissing(kind); $("seg-" + kind).querySelector("[aria-pressed=true]").focus(); };
@@ -230,16 +237,18 @@ function renderChips(kind) {
 }
 
 const byName = (a, b) => a.localeCompare(b, "hu", { numeric: true });
-const TIER_NAMES = ["Common", "Uncommon", "Rare", "Epic", "Legendary"];
-const tierOf = (o) => Math.min(4, Math.max(0, o.r || 0));
+const TIER_NAMES = ["Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Artifact"];
+const tierOf = (o) => Math.min(6, Math.max(0, o.r || 0));
+// HEV ids are train formations that come and go, so they have no meaningful idle time.
+const idleDays = (p) => (p.ll && p.m !== "HEV unit" ? Math.max(0, Math.floor((Date.now() - Date.parse(p.ll)) / 86400000)) : 0);
 function rarityWhy(kind, o) {
   const why = [];
   if (kind === "plate") {
     if (/heritage/i.test(o.m || "")) why.push("Heritage vehicle");
     const n = modelCount[o.m];
-    if (n && n <= 60) why.push(n === 1 ? "The only one of its model" : `Only ${n} of this model exist`);
-    const days = o.ll ? Math.floor((Date.now() - Date.parse(o.ll)) / 86400000) : 0;
-    if (days >= 45) why.push(`Last signed in ${days} days ago`);
+    if (n && n <= 6) why.push(n === 1 ? "The only one of its model" : `Only ${n} of this model exist`);
+    const days = idleDays(o);
+    if (days >= 3) why.push(`Not signed on for ${days} days`);
   } else {
     const t = { night: "Night line", out2: "Starts and ends outside Budapest", out1: "Reaches outside Budapest", few: "Only a handful of trips a day" };
     (o.rw || []).forEach((c) => t[c] && why.push(t[c]));
@@ -274,6 +283,7 @@ function collTile(kind, o, state) {
   if (kind === "plates" && o.plate.length > 12) b.classList.add("long");
   if (state !== "todo") b.append(el("span", "mark", state === "done" ? "\u2713" : "\u00BD"));
   if (tier) b.append(el("span", "gem"));
+  if (kind === "plates" && idleDays(o) >= 3) b.append(el("span", "idle", idleDays(o) + "d"));
   b.setAttribute("aria-label", `${kind === "lines" ? "Line " + o.id : "Plate " + o.plate}, ${tier ? TIER_NAMES[tier].toLowerCase() + ", " : ""}${STATE_TEXT[state]}`);
   b.onclick = () => showDetail(kind === "lines" ? "line" : "plate", o);
   return b;
@@ -339,14 +349,13 @@ function showDetail(kind, o) {
   if (kind === "plate") {
     $("detail-title").textContent = o.plate;
     const ride = entries.find((e) => normPlate(e.plate) === o.plate);
+    if (modelPhotos[o.m]) { const im = el("img", "detail-photo"); im.src = "data/models/" + modelPhotos[o.m].file; im.alt = `Photo of a ${o.m}`; body.append(im); }
     body.append(badge(TYPES[typeOf(o.type)], TYPE_COLOR[typeOf(o.type)]), el("span", "sub", o.m ? "  " + o.m : ""), el("p", "", ride ? `Ridden on ${new Date(ride.time).toLocaleDateString()} (line ${ride.line}).` : "Not ridden yet."));
     const ls = el("div", "items"); (o.lines || []).forEach((id) => ls.append(lineBadge(id)));
     if (tierOf(o) > 0) body.append(tierBox());
     section("Seen on lines", (o.lines || []).length ? ls : el("p", "sub", "No line seen yet."));
-    const live = el("div", "live"), lb = el("button", "", "Check if it is running now"); lb.type = "button";
-    const out = el("p", "", ""); out.setAttribute("role", "status");
-    lb.onclick = () => liveStatus(o.plate, out, lb);
-    live.append(lb, out); section("Right now", live);
+    const live = liveCard(o.plate);
+    section("Right now", live);
     // A pattern only means something with enough samples spread over the day.
     const spread = hours ? hours.filter((v) => v > 0).length : 0;
     if (seen >= 10 && spread >= 4) section("When it is usually seen", hoursChart(hours, "sightings"));
@@ -369,23 +378,42 @@ function showDetail(kind, o) {
 
 // Live status: read the vehicle's page on WinMenetrend (FUTAR data). Only the Android app can, because the site allows no cross-site requests.
 const budapestNow = () => new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Budapest" }));
-async function liveStatus(plate, out, btn) {
-  if (!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform())) { out.textContent = "Live status works in the Android app."; return; }
-  btn.disabled = true; out.textContent = "Checking...";
-  try {
-    const r = await Capacitor.nativePromise("CapacitorHttp", "get", { url: "https://online.winmenetrend.hu/futar/history/vehicles/" + encodeURIComponent(plate) });
-    const doc = new DOMParser().parseFromString(String(r.data), "text/html");
-    const text = doc.body.textContent.replace(/\s+/g, " ");
-    const m = text.match(/Utolsó bejelentkezés:\s*(\d{4})\.(\d{2})\.(\d{2})\.\s*(\d{1,2}):(\d{2})/);
-    if (!m) { out.textContent = "This vehicle has no live record."; btn.disabled = false; return; }
-    const last = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]), ageMin = (budapestNow() - last) / 60000;
-    const rows = [...doc.querySelectorAll("table")].flatMap((t) => [...t.rows]).map((tr) => [...tr.cells].map((c) => c.textContent.trim())).filter((c) => c.length >= 4 && /^\d{4}\./.test(c[0]));
-    const latest = rows[rows.length - 1], lineId = latest ? (routeNames[latest[2]] || latest[2]) : "";
-    const when = last.toLocaleString([], { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
-    if (ageMin <= 10 && latest) out.textContent = `In service now on line ${lineId}, since ${latest[0].slice(-5)}. Last signal ${when}. When the shift ends is not published.`;
-    else out.textContent = `Not in service. Last signal ${when}` + (latest ? ` on line ${lineId}.` : ".");
-  } catch { out.textContent = "Could not reach the live data. Try again with a connection."; }
-  btn.disabled = false;
+const isNative = () => !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());
+function ago(min) { return min < 2 ? "just now" : min < 90 ? `${Math.round(min)} min ago` : min < 2880 ? `${Math.round(min / 60)} hours ago` : `${Math.round(min / 1440)} days ago`; }
+
+function liveCard(plate) {
+  const box = el("div", "livecard"), head = el("div", "lhead"), dot = el("span", "dot"), title = el("strong", "", "Checking...");
+  const body = el("div", "lbody"), foot = el("p", "sub", ""), again = el("button", "plain", "Check again");
+  again.type = "button"; head.append(dot, title); box.setAttribute("role", "status"); box.append(head, body, foot, again);
+  const set = (state, t, node, f) => { box.className = "livecard " + state; title.textContent = t; body.replaceChildren(...(node ? [node] : [])); foot.textContent = f || ""; };
+  const run = async () => {
+    if (!isNative()) { set("none", "Live status needs the Android app", null, "The site it reads cannot be opened from a browser."); again.hidden = true; return; }
+    again.disabled = true; set("loading", "Checking...", null, "");
+    try {
+      const r = await Capacitor.nativePromise("CapacitorHttp", "get", { url: "https://online.winmenetrend.hu/futar/history/vehicles/" + encodeURIComponent(plate) });
+      const doc = new DOMParser().parseFromString(String(r.data), "text/html");
+      const text = doc.body.textContent.replace(/\s+/g, " ");
+      const m = text.match(/Utolsó bejelentkezés:\s*(\d{4})\.(\d{2})\.(\d{2})\.\s*(\d{1,2}):(\d{2})/);
+      if (!m) { set("none", "No live record", null, "This vehicle has not signed on recently."); again.disabled = false; return; }
+      const last = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]), min = (budapestNow() - last) / 60000;
+      const rows = [...doc.querySelectorAll("table")].flatMap((t) => [...t.rows]).map((tr) => [...tr.cells].map((c) => c.textContent.trim())).filter((c) => c.length >= 4 && /^\d{4}\./.test(c[0]));
+      const latest = rows[rows.length - 1], lineId = latest ? (routeNames[latest[2]] || latest[2]) : "";
+      const full = last.toLocaleString([], { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+      const info = el("div", "linfo");
+      if (lineId) info.append(lineBadge(lineId));
+      if (min <= 10 && latest) {
+        info.append(el("span", "", `on the road since ${latest[0].slice(-5)}`));
+        set("on", "In service now", info, `Last signal ${ago(min)} (${full}). The end of the shift is not published.`);
+      } else {
+        if (lineId) info.append(el("span", "", "last line"));
+        set("off", "Not in service", lineId ? info : null, `Last signal ${ago(min)} (${full}).`);
+      }
+    } catch { set("none", "Could not check", null, "Try again with a connection."); }
+    again.disabled = false;
+  };
+  again.onclick = run;
+  run();
+  return box;
 }
 $("detail-close").onclick = () => $("detail").close();
 
@@ -397,20 +425,30 @@ function fillModels() {
   });
   if (filters.model && !byModel[filters.model]) filters.model = "";
   const box = $("model-cards");
+  const again = () => { renderMissing("plates"); const sel = box.querySelector("[aria-pressed=true]"); if (sel) sel.focus(); };
   const card = (key, title, sub, art, pressed) => {
     const b = el("button", "mcard"); b.type = "button"; b.setAttribute("aria-pressed", String(pressed));
     const a = el("span", "mart"); a.append(art); b.append(a, el("strong", "", title), el("span", "sub", sub));
-    b.onclick = () => { filters.model = key; shown.plates = PAGE; renderMissing("plates"); box.querySelector("[aria-pressed=true]").focus(); box.querySelector("[aria-pressed=true]").scrollIntoView({ inline: "center", block: "nearest" }); };
+    b.onclick = () => { filters.model = key; shown.plates = PAGE; $("model-pick").open = false; renderMissing("plates"); $("model-pick").querySelector("summary").focus(); };
     return b;
   };
   const photo = (m, sample) => {
     const ph = modelPhotos[m];
-    if (ph) { const i = el("img"); i.src = "data/models/" + ph.file; i.alt = ""; i.loading = "lazy"; return i; }
+    if (ph) { const i = el("img"); i.src = "data/models/" + ph.file; i.alt = `Photo of a ${m}`; i.loading = "lazy"; return i; }
     return vehicleArt(sample);
   };
   const total = Object.values(byModel).reduce((a, g) => a + g.left, 0);
-  const all = card("", "All models", `${total} left`, vehicleArt({ type: filters.plates === "ALL" ? "BUS" : filters.plates, m: "" }), !filters.model);
-  box.replaceChildren(all, ...Object.entries(byModel).sort((a, b) => b[1].total - a[1].total).map(([m, g]) => card(m, m, `${g.left} of ${g.total} left`, photo(m, g.sample), filters.model === m)));
+  const list = Object.entries(byModel).sort((a, b) => b[1].total - a[1].total);
+  const visible = filters.allModels ? list : list.filter(([m], i) => i < 7 || m === filters.model);
+  const cards = [card("", "All models", `${total} left`, vehicleArt({ type: filters.plates === "ALL" ? "BUS" : filters.plates, m: "" }), !filters.model),
+    ...visible.map(([m, g]) => card(m, m, `${g.left} of ${g.total} left`, photo(m, g.sample), filters.model === m))];
+  if (list.length > visible.length || filters.allModels) {
+    const t = el("button", "mmore", filters.allModels ? "Show fewer models" : `Show all ${list.length} models`); t.type = "button";
+    t.onclick = () => { filters.allModels = !filters.allModels; renderMissing("plates"); $("model-cards").querySelector(".mmore").focus(); };
+    cards.push(t);
+  }
+  box.replaceChildren(...cards);
+  $("model-sum").textContent = filters.model || "All models";
 }
 
 function renderMissing(kind) {
@@ -418,18 +456,27 @@ function renderMissing(kind) {
   if (kind === "plates") fillModels();
   const q = $("q-" + kind).value.trim().toUpperCase().replace(/\s+/g, "");
   const done = kind === "lines" ? clearedLines() : clearedPlates(), part = kind === "lines" ? partialLines() : new Set();
-  const base = (kind === "lines" ? allLines().map((l) => ({ k: l.id, type: l.type, o: l })) : allPlates().map((p) => ({ k: p.plate, type: p.type, o: p })))
+  const pre = (kind === "lines" ? allLines().map((l) => ({ k: l.id, type: l.type, o: l })) : allPlates().map((p) => ({ k: p.plate, type: p.type, o: p })))
     .filter((i) => (filters[kind] === "ALL" || typeOf(i.type) === filters[kind]) && (!q || i.k.replace(/\s+/g, "").includes(q)) && (kind !== "plates" || !filters.model || i.o.m === filters.model));
+  // Rarity chips show how many items each tier has under the other filters; one tier can be picked.
+  const tierCount = Array(7).fill(0); pre.forEach((i) => tierCount[tierOf(i.o)]++);
+  const rbox = document.querySelector(`.chips[data-rar="${kind}"]`);
+  rbox.replaceChildren(...[[-1, "Any rarity", pre.length], ...TIER_NAMES.map((n, t) => [t, n, tierCount[t]])].filter(([t, , n]) => t === -1 || n > 0 || filters.rarity[kind] === t).map(([t, name, n]) => {
+    const b = el("button", t > 0 ? "r" + t : "", `${name} ${n}`); b.type = "button"; b.setAttribute("aria-pressed", String(filters.rarity[kind] === t));
+    b.onclick = () => { filters.rarity[kind] = t; shown[kind] = PAGE; renderMissing(kind); document.querySelector(`.chips[data-rar="${kind}"] [aria-pressed=true]`).focus(); };
+    return b;
+  }));
+  const base = pre.filter((i) => filters.rarity[kind] === -1 || tierOf(i.o) === filters.rarity[kind]);
   const stateOf = (i) => (done.has(i.k) ? "done" : part.has(i.k) ? "partial" : "todo");
   const st = filters.status[kind];
-  const items = base.filter((i) => st === "all" || (st === "done" ? stateOf(i) === "done" : stateOf(i) !== "done")).sort((a, b) => byName(a.k, b.k));
+  const items = base.filter((i) => st === "all" || (st === "done" ? stateOf(i) === "done" : stateOf(i) !== "done")).sort((a, b) => (kind === "plates" && filters.sort === "idle" ? idleDays(b.o) - idleDays(a.o) || byName(a.k, b.k) : byName(a.k, b.k)));
   $("sum-" + kind).textContent = `${base.filter((i) => stateOf(i) === "done").length} of ${base.length} collected` + (kind === "lines" ? ". A line counts after you ride it end to end." : ".");
   const host = $("list-" + kind);
   if (!items.length) { host.replaceChildren(el("p", "empty", st === "done" ? "Nothing collected here yet." : "Nothing left here.")); return; }
   const out = []; let grid = null, lastType = null;
   items.slice(0, shown[kind]).forEach((i) => {
     const t = typeOf(i.type);
-    if (filters[kind] === "ALL" && t !== lastType) {
+    if (filters[kind] === "ALL" && t !== lastType && !(kind === "plates" && filters.sort === "idle")) {
       lastType = t; const n = items.filter((x) => typeOf(x.type) === t).length;
       const h = el("div", "tilehead"); h.append(el("h2", "", TYPES[t]), el("span", "sub", `${n}`)); out.push(h);
       grid = el("div", "tiles"); out.push(grid);
@@ -479,6 +526,16 @@ function renderProgress() {
     b.onclick = () => { filters.model = ""; if (pt.length) { filters.plates = t; shown.plates = PAGE; show("plates"); } else { filters.lines = t; shown.lines = PAGE; show("lines"); } };
     return b;
   }).filter(Boolean));
+
+  // Out of service the longest: the vehicles that have not signed on for the most days.
+  const idleTop = P.filter((p) => idleDays(p) >= 3).sort((a, b) => idleDays(b) - idleDays(a)).slice(0, 5);
+  $("idle-list").replaceChildren(...(idleTop.length ? idleTop.map((p) => {
+    const b = el("button", "idlerow"); b.type = "button";
+    const t = tierOf(p); if (t) b.classList.add("r" + t);
+    b.append(el("strong", "", p.plate), el("span", "sub", p.m || ""), el("span", "idlecount", `${idleDays(p)} days`));
+    b.onclick = () => showDetail("plate", p);
+    return b;
+  }).concat([(() => { const m = el("button", "mmore", "See them all"); m.type = "button"; m.onclick = () => { filters.plates = "ALL"; filters.model = ""; filters.sort = "idle"; filters.status.plates = "todo"; shown.plates = PAGE; show("plates"); }; return m; })()]) : [el("p", "empty", "Every vehicle has signed on in the last 3 days.")]));
 
   // By model: progress per vehicle model; a tap lists its plates.
   const groups = {};
@@ -804,10 +861,10 @@ function showCatch(c) {
   const tiles = el("div", "catch-tiles"); top.forEach((i) => tiles.append(collTile(i.kind, i.o, "done"))); card.append(tiles);
   const why = [...new Set(top.flatMap((i) => rarityWhy(i.kind === "lines" ? "line" : "plate", i.o)))];
   if (why.length) card.append(el("p", "catch-why", why.join(". ") + "."));
-  for (let i = 0; i < 14; i++) { const p = el("span", "spark"); p.style.setProperty("--x", (6 + Math.round(Math.random() * 88)) + "%"); p.style.setProperty("--d", (Math.random() * 1.4).toFixed(2) + "s"); p.style.setProperty("--s", (6 + Math.round(Math.random() * 8)) + "px"); card.append(p); }
+  for (let i = 0; i < (c.best >= 5 ? 28 : 14); i++) { const p = el("span", "spark"); p.style.setProperty("--x", (6 + Math.round(Math.random() * 88)) + "%"); p.style.setProperty("--d", (Math.random() * 1.4).toFixed(2) + "s"); p.style.setProperty("--s", (6 + Math.round(Math.random() * 8)) + "px"); card.append(p); }
   const ok = el("button", "primary", "Nice"); ok.type = "button"; ok.onclick = () => d.close(); card.append(ok);
   d.replaceChildren(card); d.showModal(); ok.focus();
-  if (navigator.vibrate) navigator.vibrate(c.best >= 4 ? [80, 50, 80, 50, 220] : c.best === 3 ? [70, 40, 160] : [60]);
+  if (navigator.vibrate) navigator.vibrate(c.best >= 6 ? [120, 60, 120, 60, 120, 60, 500] : c.best >= 5 ? [100, 60, 100, 60, 320] : c.best >= 4 ? [80, 50, 80, 50, 220] : c.best === 3 ? [70, 40, 160] : [60]);
 }
 $("catch").addEventListener("click", (e) => { if (e.target === $("catch")) $("catch").close(); });
 $("catch").addEventListener("close", () => setTimeout(() => $("line").focus(), 30));

@@ -60,18 +60,44 @@ def vehicle_type(model: str) -> str:
     return "BUS"
 
 
-def fetch_models():
-    req = urllib.request.Request(URL, headers={"User-Agent": UA})
-    page = urllib.request.urlopen(req, timeout=90).read().decode("utf-8", "replace")
-    out = {}
+OLD_URL = URL + "?show_old=1"
+OLD_DAYS = 365  # vehicles that have not signed on for up to a year still count: spares and stored buses
+
+
+def _rows(url):
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    page = urllib.request.urlopen(req, timeout=180).read().decode("utf-8", "replace")
     for row in re.findall(r"<tr[^>]*>(.*?)</tr>", page, flags=re.S):
         cells = [html.unescape(re.sub(r"<[^>]+>", "", c)).strip() for c in re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", row, flags=re.S)]
-        if len(cells) < 3 or cells[0] == "Rendszám":
-            continue
-        plate, last, model = cells[0].replace(" ", "").upper(), cells[1], cells[2]
+        if len(cells) >= 3 and cells[0] != "Rendszám":
+            yield cells[0].replace(" ", "").upper(), cells[1], cells[2]
+
+
+def _entry(last, model):
+    return {"m": family(model), "t": vehicle_type(model), "ll": last[:10], "h": bool(HERITAGE.search(model))}
+
+
+def fetch_models(today=None):
+    from datetime import date
+    today = today or date.today()
+    out = {}
+    for plate, last, model in _rows(URL):
         if not model or (RAIL.search(model) and not COG.search(model)) or VOLAN.search(model):
             continue
-        out[plate] = {"m": family(model), "t": vehicle_type(model), "ll": last[:10], "h": bool(HERITAGE.search(model))}
+        out[plate] = _entry(last, model)
+    # The "old vehicles" list: keep recent ones, never train formations (HEV ids come and go).
+    try:
+        for plate, last, model in _rows(OLD_URL):
+            if plate in out or not model or (RAIL.search(model) and not COG.search(model)) or VOLAN.search(model) or re.match(r"^m[xi]", model, re.I):
+                continue
+            try:
+                if (today - date.fromisoformat(last[:10])).days > OLD_DAYS:
+                    continue
+            except ValueError:
+                continue
+            out[plate] = _entry(last, model)
+    except Exception as e:  # the old list is a bonus; keep going without it
+        print("models: old list failed:", e)
     return out
 
 

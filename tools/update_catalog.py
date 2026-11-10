@@ -168,7 +168,7 @@ def main():
         wd = svc.get(lid, {}).get("wd", [0] * 24)
         total = sum(wd) or 1
         night = sum(wd[h] for h in (23, 0, 1, 2, 3, 4)) / total
-        ends = [stops_json["stops"][d["s"][i]][0] for d in dirs for i in (0, -1)]
+        ends = [rarity.outside_budapest(*stops_json["stops"][d["s"][i]]) for d in dirs for i in (0, -1)]
         line_tier[lid], line_why[lid] = rarity.line_rarity(wd, ends, night)
     per_model = {}
     for info in mod.values():
@@ -176,7 +176,7 @@ def main():
     for plate, p in plates.items():
         info = mod.get(plate)
         if info:
-            p["r"] = rarity.plate_rarity(per_model[info["m"]], info.get("ll"), info.get("h", False))
+            p["r"] = rarity.plate_rarity(per_model[info["m"]], info.get("ll"), info.get("h", False), ignore_idle=info["m"] == "HEV unit")  # HEV ids are train formations that come and go
 
     out = {
         "lines": [{"id": k, "label": k, "type": v["type"], "color": v["color"], "text": v["text"], "h": line_hours.get(k, [0] * 24), "r": line_tier.get(k, 0), "rw": line_why.get(k, [])} for k, v in sorted(lines.items())],
