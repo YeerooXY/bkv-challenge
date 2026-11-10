@@ -319,9 +319,9 @@ async function liveStatus(plate, out, btn) {
     const last = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]), ageMin = (budapestNow() - last) / 60000;
     const rows = [...doc.querySelectorAll("table")].flatMap((t) => [...t.rows]).map((tr) => [...tr.cells].map((c) => c.textContent.trim())).filter((c) => c.length >= 4 && /^\d{4}\./.test(c[0]));
     const latest = rows[rows.length - 1], lineId = latest ? (routeNames[latest[2]] || latest[2]) : "";
-    const hhmm = m[4].padStart(2, "0") + ":" + m[5];
-    if (ageMin <= 10 && latest) out.textContent = `In service now on line ${lineId}, since ${latest[0].slice(-5)}. Last signal ${hhmm}. When the shift ends is not published.`;
-    else out.textContent = `Not in service. Last signal ${hhmm}` + (latest ? ` on line ${lineId}.` : ".");
+    const when = last.toLocaleString([], { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    if (ageMin <= 10 && latest) out.textContent = `In service now on line ${lineId}, since ${latest[0].slice(-5)}. Last signal ${when}. When the shift ends is not published.`;
+    else out.textContent = `Not in service. Last signal ${when}` + (latest ? ` on line ${lineId}.` : ".");
   } catch { out.textContent = "Could not reach the live data. Try again with a connection."; }
   btn.disabled = false;
 }

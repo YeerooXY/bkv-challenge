@@ -32,11 +32,23 @@ FEED_URL = "https://go.bkk.hu/api/query/v1/ws/gtfs-rt/full/VehiclePositions.pb"
 GTFS_URL = "https://go.bkk.hu/api/static/v1/public-gtfs/budapest_gtfs.zip"
 TYPES = {"3": "BUS", "0": "TRAM", "11": "TROLLEYBUS", "109": "HEV", "1": "SUBWAY", "4": "FERRY"}
 # When one line number is used by two modes (tram 4 and its replacement bus 4), keep the real line.
-PRIORITY = ["SUBWAY", "TRAM", "TROLLEYBUS", "HEV", "FERRY", "BUS"]
+PRIORITY = ["SUBWAY", "TRAM", "TROLLEYBUS", "HEV", "FERRY", "BUS", "OTHER"]
 REFRESH_DAYS = 7
 
 
+def special(routes):
+    """MOZG is BKK's transport service for people with reduced mobility, not a public bus line."""
+    for r in routes.values():
+        if r["name"] == "MOZG":
+            r["type"] = "OTHER"
+    return routes
+
+
 def load_routes():
+    return special(_load_routes())
+
+
+def _load_routes():
     local = os.environ.get("GTFS_ZIP")
     if not local and ROUTES.exists():
         data = json.loads(ROUTES.read_text(encoding="utf-8"))
@@ -138,7 +150,7 @@ def main():
             p = plates[plate] = {"plate": plate, "type": info["t"], "lines": []}
             added += 1
         p["m"] = info["m"]
-        if p.get("type", "UNKNOWN") == "UNKNOWN":
+        if p.get("type", "UNKNOWN") == "UNKNOWN" or info["t"] == "OTHER":
             p["type"] = info["t"]
 
     out = {

@@ -14,7 +14,7 @@ OUT = Path(__file__).parents[1] / "data" / "stops.json"
 SERVICE = Path(__file__).parents[1] / "data" / "service.json"
 # Typical days used for "trips per hour": a Tuesday, a Saturday and a Sunday without holidays.
 DAYS = {"wd": "20261117", "sa": "20261121", "su": "20261122"}
-PRIORITY = ["SUBWAY", "TRAM", "TROLLEYBUS", "HEV", "FERRY", "BUS"]
+PRIORITY = ["SUBWAY", "TRAM", "TROLLEYBUS", "HEV", "FERRY", "BUS", "OTHER"]
 SAMPLES = 14  # trips sampled per route and direction; the longest one is the full route
 
 

@@ -32,6 +32,7 @@ FAMILIES = [
     (r"newag300|ag318|a330|newa330", "Van Hool"),
     (r"modulo m108", "Modulo M108"), (r"modulo m168", "Modulo M168"), (r"modulo medio", "Modulo Medio"),
     (r"byd ebus b12", "BYD eBus B12"), (r"byd ebus b19", "BYD eBus B19"),
+    (r"mozg[áa]skorl", "Accessible van (Renault Master)"),
     (r"setra", "Setra"), (r"karsan", "Karsan Atak"), (r"solaris urbino", "Solaris Urbino"), (r"itk-reform", "ITK-Reform 501"),
     (r"ikarus.*nosztalgia", "Ikarus (heritage)"), (r"ikarus 1[28]7v", "Ikarus 127V/187V"),
     (r"trollino 18|trollino 12d?\b.*(csukl)", "Solaris Trollino 18"), (r"trollino 12", "Solaris Trollino 12"),
@@ -54,6 +55,8 @@ def family(model: str) -> str:
 
 
 def vehicle_type(model: str) -> str:
+    if re.search(r"mozg[áa]skorl", model, re.I):
+        return "OTHER"  # the MOZG service for people with reduced mobility
     if HEV_UNIT.match(model):
         return "HEV"
     if TRAM.search(model):
