@@ -1,4 +1,4 @@
-const CACHE = "bkv-challenge-v5";
+const CACHE = "bkv-challenge-v6";
 const ASSETS = ["./", "index.html", "css/app.css", "js/app.js", "data/catalog.json", "data/stops.json", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", (e) => {

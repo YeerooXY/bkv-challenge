@@ -94,3 +94,9 @@ button.plain{border:0;background:none;color:var(--accent);font-weight:600;min-he
 ul.plain{padding-left:1.1rem;margin:.3rem 0}
 #detail-body h3{font-size:1rem;margin:1rem 0 .4rem}
 button:disabled{opacity:.5;cursor:default}
+.modelrow{display:flex;align-items:center;gap:.6rem;width:100%;margin:.3rem 0;text-align:left;justify-content:flex-start;flex-wrap:wrap}
+.modelrow .sumtext{color:var(--muted);font-variant-numeric:tabular-nums}
+.mbar{flex:1 1 100%;height:6px;background:var(--line);border-radius:999px;overflow:hidden}.mbar i{display:block;height:100%}
+.live p{margin:.6rem 0 0}
+a.btn{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:.6rem 1rem;border-radius:10px;text-decoration:none;border:1px solid var(--line);color:var(--fg)}
+a.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:700}

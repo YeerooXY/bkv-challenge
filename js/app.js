@@ -24,7 +24,8 @@ let entries = [];
 let extras = [];
 let editing = null; // entry being edited
 let photos = []; // [{blob, url}] attached to the form
-const filters = { lines: "ALL", plates: "ALL" };
+const filters = { lines: "ALL", plates: "ALL", model: "" };
+let routeNames = {}; // BKK internal route id -> public line number
 
 // ---------- IndexedDB ----------
 let db;
@@ -156,7 +157,7 @@ function plateMatches(raw) {
     .slice(0, 40)
     .map(({ p }) => ({
       value: p.plate, label: p.plate, plate: p, badge: badge(TYPES[typeOf(p.type)], TYPE_COLOR[typeOf(p.type)], "small"),
-      sub: [onLine(p) ? `seen on ${ln}` : (p.lines || []).slice(0, 4).join(", "), cleared.has(p.plate) ? "already ridden" : "not ridden yet"].filter(Boolean).join(" · "),
+      sub: [p.m, onLine(p) ? `seen on ${ln}` : (p.lines || []).slice(0, 4).join(", "), cleared.has(p.plate) ? "already ridden" : "not ridden yet"].filter(Boolean).join(" · "),
     }));
   const norm = normPlate(raw);
   if (!allPlates().some((p) => p.plate === norm)) res.push({ value: norm, label: `Add "${norm}" as a new plate`, isNew: true });
@@ -224,9 +225,13 @@ function showDetail(kind, o) {
   if (kind === "plate") {
     $("detail-title").textContent = o.plate;
     const ride = entries.find((e) => normPlate(e.plate) === o.plate);
-    body.append(badge(TYPES[typeOf(o.type)], TYPE_COLOR[typeOf(o.type)]), el("p", "", ride ? `Ridden on ${new Date(ride.time).toLocaleDateString()} (line ${ride.line}).` : "Not ridden yet."));
+    body.append(badge(TYPES[typeOf(o.type)], TYPE_COLOR[typeOf(o.type)]), el("span", "sub", o.m ? "  " + o.m : ""), el("p", "", ride ? `Ridden on ${new Date(ride.time).toLocaleDateString()} (line ${ride.line}).` : "Not ridden yet."));
     const ls = el("div", "items"); (o.lines || []).forEach((id) => ls.append(lineBadge(id)));
     section("Seen on lines", (o.lines || []).length ? ls : el("p", "sub", "No line seen yet."));
+    const live = el("div", "live"), lb = el("button", "", "Check if it is running now"); lb.type = "button";
+    const out = el("p", "", ""); out.setAttribute("role", "status");
+    lb.onclick = () => liveStatus(o.plate, out, lb);
+    live.append(lb, out); section("Right now", live);
   } else {
     $("detail-title").textContent = `Line ${o.id}`;
     body.append(badge(o.id, lineColors(o)), el("span", "sub", ` ${TYPES[typeOf(o.type)]}`));
@@ -240,14 +245,46 @@ function showDetail(kind, o) {
   if (seen >= 3) body.append(el("p", "sub", `Based on ${seen} sightings, by hour of day (Budapest time).`));
   $("detail").showModal();
 }
+// Live status: read the vehicle's page on WinMenetrend (FUTAR data). Only the Android app can, because the site allows no cross-site requests.
+const budapestNow = () => new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Budapest" }));
+async function liveStatus(plate, out, btn) {
+  if (!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform())) { out.textContent = "Live status works in the Android app."; return; }
+  btn.disabled = true; out.textContent = "Checking...";
+  try {
+    const r = await Capacitor.nativePromise("CapacitorHttp", "get", { url: "https://online.winmenetrend.hu/futar/history/vehicles/" + encodeURIComponent(plate) });
+    const doc = new DOMParser().parseFromString(String(r.data), "text/html");
+    const text = doc.body.textContent.replace(/\s+/g, " ");
+    const m = text.match(/Utolsó bejelentkezés:\s*(\d{4})\.(\d{2})\.(\d{2})\.\s*(\d{1,2}):(\d{2})/);
+    if (!m) { out.textContent = "This vehicle has no live record."; btn.disabled = false; return; }
+    const last = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]), ageMin = (budapestNow() - last) / 60000;
+    const rows = [...doc.querySelectorAll("table")].flatMap((t) => [...t.rows]).map((tr) => [...tr.cells].map((c) => c.textContent.trim())).filter((c) => c.length >= 4 && /^\d{4}\./.test(c[0]));
+    const latest = rows[rows.length - 1], lineId = latest ? (routeNames[latest[2]] || latest[2]) : "";
+    const hhmm = m[4].padStart(2, "0") + ":" + m[5];
+    if (ageMin <= 10 && latest) out.textContent = `In service now on line ${lineId}, since ${latest[0].slice(-5)}. Last signal ${hhmm}. When the shift ends is not published.`;
+    else out.textContent = `Not in service. Last signal ${hhmm}` + (latest ? ` on line ${lineId}.` : ".");
+  } catch { out.textContent = "Could not reach the live data. Try again with a connection."; }
+  btn.disabled = false;
+}
 $("detail-close").onclick = () => $("detail").close();
+
+function fillModels() {
+  const cleared = clearedPlates(), counts = {};
+  allPlates().forEach((p) => { if (p.m && !cleared.has(p.plate) && (filters.plates === "ALL" || typeOf(p.type) === filters.plates)) counts[p.m] = (counts[p.m] || 0) + 1; });
+  if (filters.model && !counts[filters.model]) filters.model = "";
+  const sel = $("model-plates");
+  sel.replaceChildren(...[["", `All models (${Object.values(counts).reduce((a, b) => a + b, 0)})`], ...Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([m, n]) => [m, `${m} (${n})`])]
+    .map(([v, t]) => { const o = el("option", "", t); o.value = v; return o; }));
+  sel.value = filters.model;
+}
+$("model-plates").onchange = () => { filters.model = $("model-plates").value; renderMissing("plates"); };
 
 function renderMissing(kind) {
   renderChips(kind);
+  if (kind === "plates") fillModels();
   const q = $("q-" + kind).value.trim().toUpperCase().replace(/\s+/g, "");
   const cleared = kind === "lines" ? clearedLines() : clearedPlates();
   const items = (kind === "lines" ? allLines().map((l) => ({ k: l.id, type: l.type, o: l })) : allPlates().map((p) => ({ k: p.plate, type: p.type, o: p })))
-    .filter((i) => !cleared.has(i.k) && (filters[kind] === "ALL" || typeOf(i.type) === filters[kind]) && (!q || i.k.replace(/\s+/g, "").includes(q)));
+    .filter((i) => !cleared.has(i.k) && (filters[kind] === "ALL" || typeOf(i.type) === filters[kind]) && (!q || i.k.replace(/\s+/g, "").includes(q)) && (kind !== "plates" || !filters.model || i.o.m === filters.model));
   const host = $("list-" + kind);
   if (!items.length) { host.replaceChildren(el("p", "empty", "Nothing missing here.")); return; }
   const groups = {};
@@ -303,6 +340,18 @@ function renderProgress() {
     return d;
   }).filter(Boolean);
   $("by-type").replaceChildren(...sections);
+
+  // By model: progress per vehicle model; a tap lists the plates still missing.
+  const groups = {};
+  P.forEach((p) => { if (p.m) { const g = (groups[p.m] ||= { total: 0, done: 0, type: p.type }); g.total++; if (cp.has(p.plate)) g.done++; } });
+  $("by-model").replaceChildren(...Object.entries(groups).sort((a, b) => b[1].total - a[1].total).map(([m, g]) => {
+    const b = el("button", "modelrow"); b.type = "button";
+    b.append(badge(m, TYPE_COLOR[typeOf(g.type)], "small"), el("span", "sumtext", `${g.done}/${g.total}`));
+    const track = el("span", "mbar"), fill = el("i"); fill.style.width = Math.round((g.done / g.total) * 100) + "%"; fill.style.background = "#" + TYPE_COLOR[typeOf(g.type)][0];
+    track.append(fill); b.append(track);
+    b.onclick = () => { filters.plates = "ALL"; filters.model = m; show("plates"); };
+    return b;
+  }));
 
   // Daily: first entry per line/plate decides the day it was cleared.
   const asc = [...entries].sort((a, b) => a.time.localeCompare(b.time));
@@ -642,6 +691,28 @@ $("import").addEventListener("change", async (ev) => {
   ev.target.value = ""; $("export").focus();
 });
 
+// ---------- app version and updates ----------
+let build = null;
+async function showVersion() {
+  try { const v = await (await fetch("version.json", { cache: "no-cache" })).json(); build = v.build || null; } catch { /* running from the website */ }
+  $("version").textContent = build ? `Installed: version 1.${build}` : "You are using the website version.";
+}
+$("update-btn").onclick = async () => {
+  const msg = $("update-msg"), link = $("update-link"); link.hidden = true; msg.textContent = "Checking...";
+  if (!build) { // website: reload the newest files
+    try { (await navigator.serviceWorker.getRegistrations()).forEach((r) => r.unregister()); (await caches.keys()).forEach((k) => caches.delete(k)); } catch { /* no service worker */ }
+    msg.textContent = "Reloading the latest version..."; setTimeout(() => location.reload(), 400); return;
+  }
+  try {
+    const r = await (await fetch("https://api.github.com/repos/YeerooXY/bkv-challenge/releases/latest")).json();
+    const latest = parseInt(String(r.tag_name).replace(/^v1\./, ""), 10);
+    if (latest > build) {
+      msg.textContent = `Version 1.${latest} is available. Download it, open the file and confirm the update. Your rides stay.`;
+      link.href = "https://github.com/YeerooXY/bkv-challenge/releases/latest/download/BKV-Challenge.apk"; link.hidden = false; link.focus();
+    } else msg.textContent = "You have the latest version.";
+  } catch { msg.textContent = "Could not check. Try again with a connection."; }
+};
+
 // ---------- boot ----------
 document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => { show(b.dataset.view); b.focus(); }));
 ["lines", "plates"].forEach((k) => $("q-" + k).addEventListener("input", () => renderMissing(k)));
@@ -649,6 +720,8 @@ document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => { sh
 (async function init() {
   db = await openDb();
   [catalog, stopData] = await Promise.all([loadCatalog(), loadStops()]);
+  try { const rt = (await (await fetch("data/routes.json")).json()).routes; routeNames = Object.fromEntries(Object.entries(rt).map(([id, r]) => [id, r.name])); } catch { /* live status shows the route id */ }
+  showVersion();
   await reload();
   resetForm();
   await restoreDraft();

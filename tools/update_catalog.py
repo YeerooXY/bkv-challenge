@@ -22,10 +22,12 @@ from google.transit import gtfs_realtime_pb2
 
 sys.path.insert(0, str(Path(__file__).parent))
 import gtfs_stops
+import models
 
 ROOT = Path(__file__).parents[1]
 CATALOG = ROOT / "data" / "catalog.json"
 ROUTES = ROOT / "data" / "routes.json"
+MODELS = ROOT / "data" / "models.json"
 FEED_URL = "https://go.bkk.hu/api/query/v1/ws/gtfs-rt/full/VehiclePositions.pb"
 GTFS_URL = "https://go.bkk.hu/api/static/v1/public-gtfs/budapest_gtfs.zip"
 TYPES = {"3": "BUS", "0": "TRAM", "11": "TROLLEYBUS", "109": "HEV", "1": "SUBWAY", "4": "FERRY"}
@@ -58,6 +60,22 @@ def load_routes():
         print(f"stops: {n_lines} lines, {n_stops} stops")
     ROUTES.write_text(json.dumps({"fetched": date.today().isoformat(), "routes": routes}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     return routes
+
+
+def load_models():
+    """Plate -> model family and type from WinMenetrend, fetched at most once a day."""
+    if MODELS.exists():
+        cached = json.loads(MODELS.read_text(encoding="utf-8"))
+        if cached["fetched"] == date.today().isoformat():
+            return cached["v"]
+    try:
+        v = models.fetch_models()
+    except Exception as e:  # keep the last copy when the site is unreachable
+        print("models: fetch failed:", e)
+        return json.loads(MODELS.read_text(encoding="utf-8"))["v"] if MODELS.exists() else {}
+    MODELS.write_text(json.dumps({"fetched": date.today().isoformat(), "v": v}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    print("models:", len(v), "vehicles")
+    return v
 
 
 def budapest_hour():
@@ -111,6 +129,17 @@ def main():
             p["type"] = routes[route]["type"]
             if routes[route]["name"] not in p["lines"]:
                 p["lines"] = sorted(p["lines"] + [routes[route]["name"]])
+
+    # Models: label known plates and add vehicles the live feed has not shown yet.
+    mod = load_models()
+    for plate, info in mod.items():
+        p = plates.get(plate)
+        if p is None:
+            p = plates[plate] = {"plate": plate, "type": info["t"], "lines": []}
+            added += 1
+        p["m"] = info["m"]
+        if p.get("type", "UNKNOWN") == "UNKNOWN":
+            p["type"] = info["t"]
 
     out = {
         "lines": [{"id": k, "label": k, "type": v["type"], "color": v["color"], "text": v["text"], "h": line_hours.get(k, [0] * 24)} for k, v in sorted(lines.items())],
