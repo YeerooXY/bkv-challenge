@@ -26,12 +26,13 @@ python -m http.server 8000
 
 Open http://localhost:8000. The service worker needs `localhost` or HTTPS.
 
-## Install on a phone
+## Install on an Android phone
 
-The app is published with GitHub Pages: https://yeerooxy.github.io/bkv-challenge/
+Download the app: https://github.com/YeerooXY/bkv-challenge/releases/latest/download/BKV-Challenge.apk
 
-- Android Chrome: menu, then "Install app".
-- iPhone Safari: Share, then "Add to Home Screen".
+Open the file and allow installs from your browser when Android asks. Later versions install over the existing app and keep your rides. The app is built and signed by the GitHub Actions workflow `build-apk.yml` (Capacitor wraps the web app); the signing key is stored as repository secrets and never in the repo.
+
+The website also works in a browser and can be added to the home screen: https://yeerooxy.github.io/bkv-challenge/
 
 ## Catalog
 
