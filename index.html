@@ -31,6 +31,7 @@
           <div><label for="to">Getting off at</label><select id="to"></select><button type="button" id="gps-to">Use my location</button></div>
         </div>
         <p id="gps-msg" role="status" aria-live="polite"></p>
+        <p id="ride-note" role="status" aria-live="polite"></p>
       </fieldset>
 
       <label for="stops">Stops travelled (filled in from the choices above, editable)</label>
@@ -58,22 +59,24 @@
   </section>
 
   <section id="view-lines" class="view" aria-labelledby="h-lines" hidden>
-    <h1 id="h-lines" tabindex="-1">Missing lines</h1>
-    <div class="tools"><input type="search" id="q-lines" placeholder="Search lines" aria-label="Search missing lines"><div class="chips" data-for="lines"></div></div>
+    <h1 id="h-lines" tabindex="-1">Lines</h1>
+    <p id="sum-lines" class="sub" role="status"></p>
+    <div class="tools"><input type="search" id="q-lines" placeholder="Search lines" aria-label="Search lines"><div class="chips" data-for="lines"></div><div id="seg-lines" class="seg" role="group" aria-label="Show"></div></div>
     <div id="list-lines"></div>
   </section>
 
   <section id="view-plates" class="view" aria-labelledby="h-plates" hidden>
-    <h1 id="h-plates" tabindex="-1">Missing plates</h1>
-    <div class="tools"><input type="search" id="q-plates" placeholder="Search plates" aria-label="Search missing plates"><div class="chips" data-for="plates"></div><label for="model-plates" class="lbl">Model</label><select id="model-plates"></select></div>
+    <h1 id="h-plates" tabindex="-1">Plates</h1>
+    <p id="sum-plates" class="sub" role="status"></p>
+    <div class="tools"><input type="search" id="q-plates" placeholder="Search plates" aria-label="Search plates"><div class="chips" data-for="plates"></div><div id="seg-plates" class="seg" role="group" aria-label="Show"></div><label for="model-plates" class="lbl">Model</label><select id="model-plates"></select></div>
     <div id="list-plates"></div>
   </section>
 
   <section id="view-progress" class="view" aria-labelledby="h-progress">
     <h1 id="h-progress" tabindex="-1">Progress</h1>
-    <div id="progress"></div>
-    <h2>Still to ride, by type</h2>
-    <div id="by-type"></div>
+    <div id="hero"></div>
+    <h2>Collections</h2>
+    <div id="tcards" class="tcards"></div>
     <h2>By model</h2>
     <p class="sub">Tap a model to see the plates still missing.</p>
     <div id="by-model"></div>
@@ -108,11 +111,11 @@
 </dialog>
 
 <nav id="tabs" aria-label="Views">
-  <button data-view="progress" aria-current="page">Progress</button>
-  <button data-view="log">Log</button>
-  <button data-view="lines">Lines</button>
-  <button data-view="plates">Plates</button>
-  <button data-view="history">History</button>
+  <button data-view="progress" aria-current="page"><span class="pill"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.5"/></svg></span>Progress</button>
+  <button data-view="log"><span class="pill"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg></span>Log</button>
+  <button data-view="lines"><span class="pill"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8 18h5a4 4 0 0 0 0-8h-2a4 4 0 0 1 0-8h5"/></svg></span>Lines</button>
+  <button data-view="plates"><span class="pill"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="10" rx="2.5"/><path d="M7 11h4M7 14h7"/></svg></span>Plates</button>
+  <button data-view="history"><span class="pill"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg></span>History</button>
 </nav>
 <script src="js/app.js"></script>
 </body>

@@ -24,7 +24,8 @@ let entries = [];
 let extras = [];
 let editing = null; // entry being edited
 let photos = []; // [{blob, url}] attached to the form
-const filters = { lines: "ALL", plates: "ALL", model: "" };
+const filters = { lines: "ALL", plates: "ALL", model: "", status: { lines: "all", plates: "all" } };
+const PAGE = 240, shown = { lines: PAGE, plates: PAGE };
 let serviceData = {}; // line -> trips per hour {wd, sa, su}
 let routeNames = {}; // BKK internal route id -> public line number
 
@@ -74,7 +75,18 @@ const allPlates = () => {
   extras.filter((e) => e.kind === "plate").forEach((e) => m.set(e.value, { plate: e.value, type: e.type || "OTHER" }));
   return [...m.values()];
 };
-const clearedLines = () => new Set(entries.map((e) => normLine(e.line)));
+// A line counts only when ridden end to end (first stop to last stop, either way). Lines without a stop list count on any ride.
+function rideCoversLine(e) {
+  const dirs = stopData.lines[normLine(e.line)];
+  if (!dirs) return true;
+  if (!e.stops || e.stops.length < 2) return false;
+  // Compare as text: rides saved before the fix may have a comma-containing name split in two.
+  const text = e.stops.join(", ");
+  const starts = (n) => text === n || text.startsWith(n + ", "), ends = (n) => text === n || text.endsWith(", " + n);
+  return dirs.some((d) => starts(stopName(d.s[0])) && ends(stopName(d.s[d.s.length - 1])));
+}
+const clearedLines = () => new Set(entries.filter(rideCoversLine).map((e) => normLine(e.line)));
+const partialLines = () => { const done = clearedLines(); return new Set(entries.map((e) => normLine(e.line)).filter((l) => !done.has(l))); };
 const clearedPlates = () => new Set(entries.map((e) => normPlate(e.plate)));
 
 // The installed Android app bundles a catalog, but the hourly updates live on the website:
@@ -169,11 +181,11 @@ function plateMatches(raw) {
 }
 
 function lineMatches(raw) {
-  const q = sKey(raw), cleared = clearedLines();
+  const q = sKey(raw), cleared = clearedLines(), partial = partialLines();
   const res = allLines().filter((l) => sKey(l.id).includes(q))
     .sort((a, b) => ((sKey(b.id) === q) - (sKey(a.id) === q)) || (sKey(b.id).startsWith(q) - sKey(a.id).startsWith(q)) || a.id.localeCompare(b.id, "hu", { numeric: true }))
     .slice(0, 8)
-    .map((l) => ({ value: l.id, label: TYPES[typeOf(l.type)], badge: badge(l.id, lineColors(l)), sub: cleared.has(l.id) ? "already ridden" : "not ridden yet" }));
+    .map((l) => ({ value: l.id, label: TYPES[typeOf(l.type)], badge: badge(l.id, lineColors(l)), sub: cleared.has(l.id) ? "ridden end to end" : partial.has(l.id) ? "partly ridden" : "not ridden yet" }));
   const norm = normLine(raw);
   if (!allLines().some((l) => l.id === norm)) res.push({ value: norm, label: `Add "${norm}" as a new line`, isNew: true });
   return res;
@@ -205,14 +217,30 @@ function renderChips(kind) {
   const box = document.querySelector(`.chips[data-for="${kind}"]`);
   box.replaceChildren(...Object.entries(TYPES).map(([k, label]) => {
     const b = el("button", "", label); b.type = "button"; b.setAttribute("aria-pressed", String(filters[kind] === k));
-    b.onclick = () => { filters[kind] = k; renderMissing(kind); document.querySelector(`.chips[data-for="${kind}"] button[aria-pressed=true]`).focus(); };
+    b.onclick = () => { filters[kind] = k; shown[kind] = PAGE; renderMissing(kind); document.querySelector(`.chips[data-for="${kind}"] button[aria-pressed=true]`).focus(); };
+    return b;
+  }));
+  $("seg-" + kind).replaceChildren(...[["all", "All"], ["todo", "To ride"], ["done", "Done"]].map(([k, label]) => {
+    const b = el("button", "", label); b.type = "button"; b.setAttribute("aria-pressed", String(filters.status[kind] === k));
+    b.onclick = () => { filters.status[kind] = k; shown[kind] = PAGE; renderMissing(kind); $("seg-" + kind).querySelector("[aria-pressed=true]").focus(); };
     return b;
   }));
 }
 
 const byName = (a, b) => a.localeCompare(b, "hu", { numeric: true });
-function lineChip(l) { const b = badge(l.id, lineColors(l), "chip"); b.tabIndex = 0; b.setAttribute("role", "button"); b.setAttribute("aria-label", `Line ${l.id}`); b.onclick = () => showDetail("line", l); b.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showDetail("line", l); } }; return b; }
-function plateChip(p) { const s = el("button", "item plate", p.plate); s.type = "button"; s.style.borderLeftColor = "#" + TYPE_COLOR[typeOf(p.type)][0]; s.onclick = () => showDetail("plate", p); return s; }
+const STATE_TEXT = { done: "ridden", partial: "partly ridden, not end to end", todo: "not ridden yet" };
+function collTile(kind, o, state) {
+  const b = el("button", `tile ${kind === "lines" ? "line" : "plate"} ${state}`); b.type = "button";
+  const [bg, fg] = kind === "lines" ? lineColors(o) : TYPE_COLOR[typeOf(o.type)];
+  b.style.setProperty("--tc", "#" + bg); b.style.setProperty("--tf", "#" + fg);
+  b.append(el("span", "num", kind === "lines" ? o.id : o.plate));
+  if (kind === "plates") b.append(el("span", "mdl", o.m || TYPES[typeOf(o.type)]));
+  if (kind === "plates" && o.plate.length > 12) b.classList.add("long");
+  if (state !== "todo") b.append(el("span", "mark", state === "done" ? "\u2713" : "\u00BD"));
+  b.setAttribute("aria-label", `${kind === "lines" ? "Line " + o.id : "Plate " + o.plate}, ${STATE_TEXT[state]}`);
+  b.onclick = () => showDetail(kind === "lines" ? "line" : "plate", o);
+  return b;
+}
 
 // Detail sheet for a line or a plate: where and when it has been seen.
 function hoursChart(h, unit) {
@@ -266,7 +294,9 @@ function showDetail(kind, o) {
     $("detail-title").textContent = `Line ${o.id}`;
     body.append(badge(o.id, lineColors(o)), el("span", "sub", ` ${TYPES[typeOf(o.type)]}`));
     const ride = entries.filter((e) => normLine(e.line) === o.id);
-    body.append(el("p", "", ride.length ? `You rode it ${ride.length} time${ride.length > 1 ? "s" : ""}.` : "Not ridden yet."));
+    const dd = stopData.lines[o.id], whole = ride.some(rideCoversLine);
+    body.append(el("p", "", whole ? "Ridden end to end." : ride.length ? `Ridden ${ride.length} time${ride.length > 1 ? "s" : ""}, but not end to end yet.` : "Not ridden yet."));
+    if (!whole && dd) body.append(el("p", "sub", `Ride from ${stopName(dd[0].s[0])} to ${stopName(dd[0].s[dd[0].s.length - 1])}, either way, to complete it.`));
     const dirs = stopData.lines[o.id] || [], ul = el("ul", "plain");
     dirs.forEach((d) => ul.append(el("li", "", `To ${d.to}: ${d.s.length} stops`)));
     section("Directions", dirs.length ? ul : el("p", "sub", "No stop list for this line."));
@@ -306,72 +336,76 @@ function fillModels() {
     .map(([v, t]) => { const o = el("option", "", t); o.value = v; return o; }));
   sel.value = filters.model;
 }
-$("model-plates").onchange = () => { filters.model = $("model-plates").value; renderMissing("plates"); };
+$("model-plates").onchange = () => { filters.model = $("model-plates").value; shown.plates = PAGE; renderMissing("plates"); };
 
 function renderMissing(kind) {
   renderChips(kind);
   if (kind === "plates") fillModels();
   const q = $("q-" + kind).value.trim().toUpperCase().replace(/\s+/g, "");
-  const cleared = kind === "lines" ? clearedLines() : clearedPlates();
-  const items = (kind === "lines" ? allLines().map((l) => ({ k: l.id, type: l.type, o: l })) : allPlates().map((p) => ({ k: p.plate, type: p.type, o: p })))
-    .filter((i) => !cleared.has(i.k) && (filters[kind] === "ALL" || typeOf(i.type) === filters[kind]) && (!q || i.k.replace(/\s+/g, "").includes(q)) && (kind !== "plates" || !filters.model || i.o.m === filters.model));
+  const done = kind === "lines" ? clearedLines() : clearedPlates(), part = kind === "lines" ? partialLines() : new Set();
+  const base = (kind === "lines" ? allLines().map((l) => ({ k: l.id, type: l.type, o: l })) : allPlates().map((p) => ({ k: p.plate, type: p.type, o: p })))
+    .filter((i) => (filters[kind] === "ALL" || typeOf(i.type) === filters[kind]) && (!q || i.k.replace(/\s+/g, "").includes(q)) && (kind !== "plates" || !filters.model || i.o.m === filters.model));
+  const stateOf = (i) => (done.has(i.k) ? "done" : part.has(i.k) ? "partial" : "todo");
+  const st = filters.status[kind];
+  const items = base.filter((i) => st === "all" || (st === "done" ? stateOf(i) === "done" : stateOf(i) !== "done")).sort((a, b) => byName(a.k, b.k));
+  $("sum-" + kind).textContent = `${base.filter((i) => stateOf(i) === "done").length} of ${base.length} collected` + (kind === "lines" ? ". A line counts after you ride it end to end." : ".");
   const host = $("list-" + kind);
-  if (!items.length) { host.replaceChildren(el("p", "empty", "Nothing missing here.")); return; }
-  const groups = {};
-  items.forEach((i) => (groups[typeOf(i.type)] ||= []).push(i));
-  host.replaceChildren(...Object.entries(groups).map(([t, list]) => {
-    const g = el("div", "group"); g.append(el("h2", "", `${TYPES[t]} (${list.length})`));
-    const box = el("div", "items");
-    list.sort((a, b) => byName(a.k, b.k)).forEach((i) => box.append(kind === "lines" ? lineChip(i.o) : plateChip(i.o)));
-    g.append(box); return g;
-  }));
+  if (!items.length) { host.replaceChildren(el("p", "empty", st === "done" ? "Nothing collected here yet." : "Nothing left here.")); return; }
+  const out = []; let grid = null, lastType = null;
+  items.slice(0, shown[kind]).forEach((i) => {
+    const t = typeOf(i.type);
+    if (filters[kind] === "ALL" && t !== lastType) {
+      lastType = t; const n = items.filter((x) => typeOf(x.type) === t).length;
+      const h = el("div", "tilehead"); h.append(el("h2", "", TYPES[t]), el("span", "sub", `${n}`)); out.push(h);
+      grid = el("div", "tiles"); out.push(grid);
+    } else if (!grid) { grid = el("div", "tiles"); out.push(grid); }
+    grid.append(collTile(kind, i.o, stateOf(i)));
+  });
+  if (items.length > shown[kind]) {
+    const more = el("button", "showmore", `Show more (${items.length - shown[kind]} left)`); more.type = "button";
+    more.onclick = () => { const first = shown[kind]; shown[kind] += PAGE; renderMissing(kind); const t = host.querySelectorAll(".tile")[first]; if (t) t.focus(); };
+    out.push(more);
+  }
+  host.replaceChildren(...out);
 }
 
-function bar(label, done, total, color) {
-  const pct = total ? Math.round((done / total) * 100) : 0;
-  const d = el("div", "stat");
-  const t = el("div", "", `${label}: `); t.append(el("b", "", `${done}/${total}`), ` (${pct}%)`);
-  const b = el("div", "bar"); b.setAttribute("role", "progressbar"); b.setAttribute("aria-label", label);
-  b.setAttribute("aria-valuemin", "0"); b.setAttribute("aria-valuemax", "100"); b.setAttribute("aria-valuenow", String(pct));
-  const i = el("i"); i.style.width = pct + "%"; if (color) i.style.background = "#" + color;
-  b.append(i); d.append(t, b); return d;
+function ring(pct, cls, color) { const r = el("div", "ring " + cls); r.style.setProperty("--p", pct); if (color) r.style.setProperty("--c", "#" + color); return r; }
+
+function statRow(label, done, total) {
+  const pct = total ? Math.round((done / total) * 100) : 0, d = el("div", "stat2");
+  const t = el("div", "t"); t.append(el("span", "", label), el("b", "", `${done} / ${total}`));
+  const m = el("div", "minibar"); m.setAttribute("role", "progressbar"); m.setAttribute("aria-label", label); m.setAttribute("aria-valuemin", "0"); m.setAttribute("aria-valuemax", "100"); m.setAttribute("aria-valuenow", String(pct));
+  const i = el("i"); i.style.width = pct + "%"; m.append(i); d.append(t, m); return d;
 }
 
 function renderProgress() {
   const L = allLines(), P = allPlates(), cl = clearedLines(), cp = clearedPlates();
   const ld = L.filter((l) => cl.has(l.id)).length, pd = P.filter((p) => cp.has(p.plate)).length;
-  $("progress").replaceChildren(bar("Overall", ld + pd, L.length + P.length), bar("Lines", ld, L.length), bar("Plates", pd, P.length));
+  const total = L.length + P.length, done = ld + pd, pct = total ? Math.round((done / total) * 100) : 0;
+  const hero = el("div", "hero"), big = ring(pct, "big");
+  big.append(el("b", "", pct + "%"), el("span", "", `${done} of ${total}`));
+  big.setAttribute("role", "img"); big.setAttribute("aria-label", `Overall ${pct} percent, ${done} of ${total} collected`);
+  const stats = el("div", "herostats"); stats.append(statRow("Lines, end to end", ld, L.length), statRow("Plates", pd, P.length));
+  hero.append(big, stats); $("hero").replaceChildren(hero);
 
-  // One expandable section per type: its bars and what is still left to ride.
-  const open = new Set([...document.querySelectorAll("#by-type details[open]")].map((d) => d.dataset.type));
-  const sections = Object.keys(TYPES).filter((t) => t !== "ALL").map((t) => {
+  // One card per type; a tap opens that collection.
+  $("tcards").replaceChildren(...Object.keys(TYPES).filter((t) => t !== "ALL").map((t) => {
     const lt = L.filter((l) => typeOf(l.type) === t), pt = P.filter((p) => typeOf(p.type) === t);
     if (!lt.length && !pt.length) return null;
-    const color = TYPE_COLOR[t][0];
-    const d = el("details"); d.dataset.type = t;
-    const sum = el("summary"); sum.append(badge(TYPES[t], TYPE_COLOR[t]));
     const ldone = lt.filter((l) => cl.has(l.id)).length, pdone = pt.filter((p) => cp.has(p.plate)).length;
-    sum.append(el("span", "sumtext", `${ldone}/${lt.length} lines · ${pdone}/${pt.length} plates`));
-    d.append(sum);
-    const fill = () => {
-      const body = el("div", "typebody");
-      if (lt.length) body.append(bar(`${TYPES[t]} lines`, ldone, lt.length, color));
-      if (pt.length) body.append(bar(`${TYPES[t]} plates`, pdone, pt.length, color));
-      const ml = lt.filter((l) => !cl.has(l.id)).sort((a, b) => byName(a.id, b.id)), mp = pt.filter((p) => !cp.has(p.plate)).sort((a, b) => byName(a.plate, b.plate));
-      body.append(el("h3", "", `Lines left (${ml.length})`));
-      const a = el("div", "items"); ml.forEach((l) => a.append(lineChip(l))); body.append(a);
-      body.append(el("h3", "", `Plates left (${mp.length})`));
-      const b = el("div", "items"); mp.forEach((p) => b.append(plateChip(p))); body.append(b);
-      d.append(body);
-    };
-    let filled = false;
-    d.addEventListener("toggle", () => { if (d.open && !filled) { filled = true; fill(); } });
-    if (open.has(t)) { d.open = true; filled = true; fill(); }
-    return d;
-  }).filter(Boolean);
-  $("by-type").replaceChildren(...sections);
+    const tp = Math.round(((ldone + pdone) / (lt.length + pt.length)) * 100);
+    const b = el("button", "tcard"); b.type = "button"; b.style.setProperty("--tc", "#" + TYPE_COLOR[t][0]);
+    const r = ring(tp, "small", TYPE_COLOR[t][0]); r.append(el("b", "", tp + "%"));
+    const txt = el("span", "tctext"); txt.append(el("strong", "", TYPES[t]));
+    if (pt.length) txt.append(el("span", "sub", `${pdone}/${pt.length} plates`));
+    txt.append(el("span", "sub", `${ldone}/${lt.length} lines`));
+    b.append(r, txt);
+    b.setAttribute("aria-label", `${TYPES[t]}: ${tp} percent. Open the collection.`);
+    b.onclick = () => { filters.model = ""; if (pt.length) { filters.plates = t; shown.plates = PAGE; show("plates"); } else { filters.lines = t; shown.lines = PAGE; show("lines"); } };
+    return b;
+  }).filter(Boolean));
 
-  // By model: progress per vehicle model; a tap lists the plates still missing.
+  // By model: progress per vehicle model; a tap lists its plates.
   const groups = {};
   P.forEach((p) => { if (p.m) { const g = (groups[p.m] ||= { total: 0, done: 0, type: p.type }); g.total++; if (cp.has(p.plate)) g.done++; } });
   $("by-model").replaceChildren(...Object.entries(groups).sort((a, b) => b[1].total - a[1].total).map(([m, g]) => {
@@ -379,17 +413,17 @@ function renderProgress() {
     b.append(badge(m, TYPE_COLOR[typeOf(g.type)], "small"), el("span", "sumtext", `${g.done}/${g.total}`));
     const track = el("span", "mbar"), fill = el("i"); fill.style.width = Math.round((g.done / g.total) * 100) + "%"; fill.style.background = "#" + TYPE_COLOR[typeOf(g.type)][0];
     track.append(fill); b.append(track);
-    b.onclick = () => { filters.plates = "ALL"; filters.model = m; show("plates"); };
+    b.onclick = () => { filters.plates = "ALL"; filters.model = m; shown.plates = PAGE; show("plates"); };
     return b;
   }));
 
-  // Daily: first entry per line/plate decides the day it was cleared.
+  // Daily: the day a line was first completed end to end, or a plate first ridden.
   const asc = [...entries].sort((a, b) => a.time.localeCompare(b.time));
   const seenL = new Set(), seenP = new Set(), days = {};
   asc.forEach((e) => {
     const d = (days[e.time.slice(0, 10)] ||= { l: 0, p: 0 });
     const l = normLine(e.line), p = normPlate(e.plate);
-    if (l && !seenL.has(l)) { seenL.add(l); d.l++; }
+    if (l && !seenL.has(l) && rideCoversLine(e)) { seenL.add(l); d.l++; }
     if (p && !seenP.has(p)) { seenP.add(p); d.p++; }
   });
   document.querySelector("#daily tbody").replaceChildren(...Object.keys(days).sort().reverse().map((d) => {
@@ -450,7 +484,8 @@ function renderHistory() {
 const pad = (n) => String(n).padStart(2, "0");
 const toLocalInput = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const localNow = () => toLocalInput(new Date());
-const parseStops = (s) => s.split(/[\n,;]+/).map((x) => x.trim()).filter(Boolean);
+// One stop per line. Stop names can contain commas, so commas only separate stops when the text has no line breaks.
+const parseStops = (s) => (s.includes("\n") ? s.split(/\n+/) : s.split(/[,;]+/)).map((x) => x.trim()).filter(Boolean);
 function msg(text, err) { const m = $("msg"); m.textContent = text; m.className = err ? "err" : ""; }
 
 // Draft: everything typed or attached is kept, so a camera app or a restart never loses it.
@@ -635,13 +670,22 @@ function selectDir(i) {
   renderDirs(); applyStops(); saveDraft();
 }
 function applyStops() {
-  if (pick.edited || !pick.data) return;
-  const s = pick.data[pick.dir].s, a = Math.min(pick.from, pick.to), b = Math.max(pick.from, pick.to);
-  $("stops").value = s.slice(a, b + 1).map(stopName).join("\n");
+  if (!pick.edited && pick.data) {
+    const s = pick.data[pick.dir].s, a = Math.min(pick.from, pick.to), b = Math.max(pick.from, pick.to);
+    $("stops").value = s.slice(a, b + 1).map(stopName).join("\n");
+  }
+  updateRideNote();
+}
+function updateRideNote() {
+  const note = $("ride-note");
+  if (!pick.data) { note.textContent = ""; note.className = ""; return; }
+  const d = pick.data[pick.dir], full = rideCoversLine({ line: normLine($("line").value), stops: parseStops($("stops").value) });
+  note.className = full ? "full" : "";
+  note.textContent = full ? "Whole line: this ride completes it." : `Partial ride. A line completes when you ride from ${stopName(d.s[0])} to ${stopName(d.s[d.s.length - 1])}, either way.`;
 }
 $("from").onchange = () => { pick.from = +$("from").value; pick.edited = false; applyStops(); saveDraft(); };
 $("to").onchange = () => { pick.to = +$("to").value; pick.edited = false; applyStops(); saveDraft(); };
-$("stops").addEventListener("input", () => { pick.edited = true; });
+$("stops").addEventListener("input", () => { pick.edited = true; updateRideNote(); });
 $("line").addEventListener("input", () => { buildPicker(); saveDraft(); });
 
 function locate() {
@@ -807,7 +851,7 @@ document.querySelectorAll("dialog.sheet").forEach((d) => d.addEventListener("cli
 
 // ---------- boot ----------
 document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => { show(b.dataset.view); b.focus(); }));
-["lines", "plates"].forEach((k) => $("q-" + k).addEventListener("input", () => renderMissing(k)));
+["lines", "plates"].forEach((k) => $("q-" + k).addEventListener("input", () => { shown[k] = PAGE; renderMissing(k); }));
 
 (async function init() {
   db = await openDb();
