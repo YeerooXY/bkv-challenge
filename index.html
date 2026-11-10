@@ -13,7 +13,7 @@
 </head>
 <body>
 <main id="app">
-  <section id="view-log" class="view" aria-labelledby="h-log">
+  <section id="view-log" class="view" aria-labelledby="h-log" hidden>
     <h1 id="h-log" tabindex="-1">Log a ride</h1>
     <form id="form" novalidate>
       <label for="line">Line</label>
@@ -69,7 +69,7 @@
     <div id="list-plates"></div>
   </section>
 
-  <section id="view-progress" class="view" aria-labelledby="h-progress" hidden>
+  <section id="view-progress" class="view" aria-labelledby="h-progress">
     <h1 id="h-progress" tabindex="-1">Progress</h1>
     <div id="progress"></div>
     <h2>Still to ride, by type</h2>
@@ -108,10 +108,10 @@
 </dialog>
 
 <nav id="tabs" aria-label="Views">
-  <button data-view="log" aria-current="page">Log</button>
+  <button data-view="progress" aria-current="page">Progress</button>
+  <button data-view="log">Log</button>
   <button data-view="lines">Lines</button>
   <button data-view="plates">Plates</button>
-  <button data-view="progress">Progress</button>
   <button data-view="history">History</button>
 </nav>
 <script src="js/app.js"></script>

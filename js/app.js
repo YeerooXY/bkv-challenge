@@ -817,5 +817,6 @@ document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => { sh
   await reload();
   resetForm();
   await restoreDraft();
+  show("progress", false); // the app opens on Progress
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 })();
