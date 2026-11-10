@@ -25,6 +25,7 @@ let extras = [];
 let editing = null; // entry being edited
 let photos = []; // [{blob, url}] attached to the form
 const filters = { lines: "ALL", plates: "ALL", model: "" };
+let serviceData = {}; // line -> trips per hour {wd, sa, su}
 let routeNames = {}; // BKK internal route id -> public line number
 
 // ---------- IndexedDB ----------
@@ -91,6 +92,9 @@ async function loadCatalog() {
     try { const saved = localStorage.getItem("catalog"); if (saved) return JSON.parse(saved); } catch { /* ignore */ }
     try { return await (await fetch("data/catalog.json")).json(); } catch { return { lines: [], plates: [] }; }
   }
+}
+async function loadService() {
+  try { return await (await fetch("data/service.json")).json(); } catch { return {}; }
 }
 async function loadStops() {
   try { return await (await fetch("data/stops.json")).json(); } catch { return { stops: [], lines: {} }; }
@@ -211,13 +215,35 @@ function lineChip(l) { const b = badge(l.id, lineColors(l), "chip"); b.tabIndex 
 function plateChip(p) { const s = el("button", "item plate", p.plate); s.type = "button"; s.style.borderLeftColor = "#" + TYPE_COLOR[typeOf(p.type)][0]; s.onclick = () => showDetail("plate", p); return s; }
 
 // Detail sheet for a line or a plate: where and when it has been seen.
-function hoursChart(h) {
+function hoursChart(h, unit) {
   const max = Math.max(1, ...h), wrap = el("div", "hours");
-  h.forEach((v, i) => { const c = el("div", "hcol"), b = el("i"); b.style.height = Math.round((v / max) * 100) + "%"; b.title = `${i}:00, ${v} sightings`; c.append(b, el("span", "hl", i % 6 === 0 ? String(i) : "")); wrap.append(c); });
+  h.forEach((v, i) => { const c = el("div", "hcol"), b = el("i"); b.style.height = Math.round((v / max) * 100) + "%"; b.title = `${i}:00, ${v} ${unit}`; c.append(b, el("span", "hl", i % 6 === 0 ? String(i) : "")); wrap.append(c); });
   const top = h.map((v, i) => [v, i]).filter((x) => x[0] > 0).sort((a, b) => b[0] - a[0]).slice(0, 3).map((x) => `${x[1]}:00`);
-  wrap.setAttribute("role", "img"); wrap.setAttribute("aria-label", `Sightings by hour of day. Most often at ${top.join(", ")}.`);
+  wrap.setAttribute("role", "img"); wrap.setAttribute("aria-label", `${unit} by hour of day. Most around ${top.join(", ")}.`);
   return wrap;
 }
+const dayType = () => { const d = budapestNow().getDay(); return d === 0 ? "su" : d === 6 ? "sa" : "wd"; };
+
+function timetableSection(id) {
+  const svc = serviceData[id];
+  if (!svc) return el("p", "sub", "No timetable data for this line.");
+  const box = el("div"), chips = el("div", "chips"), chart = el("div"), sum = el("p", "sub");
+  let day = dayType();
+  const paint = () => {
+    chips.replaceChildren(...[["wd", "Weekday"], ["sa", "Saturday"], ["su", "Sunday"]].map(([k, t]) => {
+      const b = el("button", "", t); b.type = "button"; b.setAttribute("aria-pressed", String(k === day));
+      b.onclick = () => { day = k; paint(); chips.querySelector("[aria-pressed=true]").focus(); };
+      return b;
+    }));
+    const h = svc[day], total = h.reduce((a, b) => a + b, 0), used = h.map((v, i) => [v, i]).filter((x) => x[0] > 0);
+    chart.replaceChildren(hoursChart(h, "trips"));
+    const hh = (i) => String(i).padStart(2, "0") + ":00";
+    const peak = used.slice().sort((a, b) => b[0] - a[0])[0];
+    sum.textContent = total ? `${total} trips. First around ${hh(used[0][1])}, last around ${hh(used[used.length - 1][1])}, busiest ${hh(peak[1])} (${peak[0]} an hour).` : "No service on this day.";
+  };
+  paint(); box.append(chips, chart, sum); return box;
+}
+
 function showDetail(kind, o) {
   const body = $("detail-body"); body.replaceChildren();
   const hours = (o.h || []).length === 24 ? o.h : null, seen = hours ? hours.reduce((a, b) => a + b, 0) : 0;
@@ -232,19 +258,23 @@ function showDetail(kind, o) {
     const out = el("p", "", ""); out.setAttribute("role", "status");
     lb.onclick = () => liveStatus(o.plate, out, lb);
     live.append(lb, out); section("Right now", live);
+    // A pattern only means something with enough samples spread over the day.
+    const spread = hours ? hours.filter((v) => v > 0).length : 0;
+    if (seen >= 10 && spread >= 4) section("When it is usually seen", hoursChart(hours, "sightings"));
+    else section("Seen so far", el("p", "sub", seen ? `${seen} sightings so far, too few to show a pattern.` : "No sightings recorded yet."));
   } else {
     $("detail-title").textContent = `Line ${o.id}`;
     body.append(badge(o.id, lineColors(o)), el("span", "sub", ` ${TYPES[typeOf(o.type)]}`));
+    const ride = entries.filter((e) => normLine(e.line) === o.id);
+    body.append(el("p", "", ride.length ? `You rode it ${ride.length} time${ride.length > 1 ? "s" : ""}.` : "Not ridden yet."));
     const dirs = stopData.lines[o.id] || [], ul = el("ul", "plain");
     dirs.forEach((d) => ul.append(el("li", "", `To ${d.to}: ${d.s.length} stops`)));
     section("Directions", dirs.length ? ul : el("p", "sub", "No stop list for this line."));
-    const ride = entries.filter((e) => normLine(e.line) === o.id);
-    body.append(el("p", "", ride.length ? `You rode it ${ride.length} time${ride.length > 1 ? "s" : ""}.` : "Not ridden yet."));
+    section("Timetable: trips per hour", timetableSection(o.id));
   }
-  section("When it is usually seen", seen >= 3 ? hoursChart(hours) : el("p", "sub", "Not enough sightings yet. The catalog adds a sample every hour, so this fills in over the coming days."));
-  if (seen >= 3) body.append(el("p", "sub", `Based on ${seen} sightings, by hour of day (Budapest time).`));
   $("detail").showModal();
 }
+
 // Live status: read the vehicle's page on WinMenetrend (FUTAR data). Only the Android app can, because the site allows no cross-site requests.
 const budapestNow = () => new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Budapest" }));
 async function liveStatus(plate, out, btn) {
@@ -369,16 +399,37 @@ function renderProgress() {
   }));
 }
 
+function trackView(track) {
+  const NS = "http://www.w3.org/2000/svg", W = 300, H = 110, pad = 10;
+  const lat0 = track.reduce((a, p) => a + p[0], 0) / track.length, kx = Math.cos((lat0 * Math.PI) / 180);
+  const xs = track.map((p) => p[1] * kx), ys = track.map((p) => p[0]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const sc = Math.min((W - 2 * pad) / Math.max(maxX - minX, 1e-9), (H - 2 * pad) / Math.max(maxY - minY, 1e-9));
+  const pt = (i) => [pad + (xs[i] - minX) * sc, H - pad - (ys[i] - minY) * sc];
+  const svg = document.createElementNS(NS, "svg"); svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("class", "track"); svg.setAttribute("role", "img");
+  let km = 0; for (let i = 1; i < track.length; i++) km += dist([track[i - 1][0], track[i - 1][1]], [track[i][0], track[i][1]]) / 1000;
+  const mins = Math.max(0, Math.round((track[track.length - 1][2] - track[0][2]) / 60));
+  svg.setAttribute("aria-label", `GPS track, ${km.toFixed(1)} km, ${mins} minutes`);
+  const line = document.createElementNS(NS, "polyline"); line.setAttribute("points", track.map((_, i) => pt(i).join(",")).join(" ")); line.setAttribute("class", "tline"); svg.append(line);
+  [[0, "tstart"], [track.length - 1, "tend"]].forEach(([i, c]) => { const [x, y] = pt(i), d = document.createElementNS(NS, "circle"); d.setAttribute("cx", x); d.setAttribute("cy", y); d.setAttribute("r", 5); d.setAttribute("class", c); svg.append(d); });
+  const wrap = el("div", "trackbox"); wrap.append(svg, el("span", "sub", `${km.toFixed(1)} km, ${mins} min, ${track.length} GPS points`)); return wrap;
+}
+
 function renderHistory() {
   const ul = $("history");
   if (!entries.length) { ul.replaceChildren(el("li", "empty", "No rides saved yet.")); return; }
   ul.replaceChildren(...entries.map((e) => {
     const li = el("li");
-    const t = el("div", "head"); t.append(lineBadge(e.line), el("strong", "", e.plate));
-    if (e.dir) t.append(el("span", "meta", `to ${e.dir}`));
-    li.append(t, el("div", "meta", new Date(e.time).toLocaleString()));
-    if (e.stops.length) li.append(el("div", "meta", "Stops: " + e.stops.join(" → ")));
-    if (e.notes) li.append(el("div", "", e.notes));
+    const t = el("div", "head"); t.append(lineBadge(e.line), el("strong", "", e.plate), el("span", "meta right", new Date(e.time).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })));
+    li.append(t);
+    if (e.stops.length) {
+      const r = el("div", "route"), row = (cls, name) => { const d = el("div", "rt"); d.append(el("i", cls), el("span", "", name)); return d; };
+      r.append(row("from", e.stops[0]));
+      if (e.stops.length > 1) r.append(row("to", e.stops[e.stops.length - 1]));
+      li.append(r);
+    }
+    if (e.notes) li.append(el("div", "note", e.notes));
+    if (e.track && e.track.length >= 2) li.append(trackView(e.track));
     const pics = el("div");
     e.photos.forEach((b) => { const i = el("img"); i.src = URL.createObjectURL(b); i.alt = `Photo of ${e.plate}`; i.loading = "lazy"; pics.append(i); });
     li.append(pics);
@@ -408,7 +459,7 @@ function saveDraft() {
   clearTimeout(draftTimer);
   draftTimer = setTimeout(async () => {
     if (editing) return;
-    const fields = { line: $("line").value, plate: $("plate").value, when: $("when").value, stops: $("stops").value, notes: $("notes").value, dir: pick.dir, from: pick.from, to: pick.to, edited: pick.edited };
+    const fields = { line: $("line").value, plate: $("plate").value, when: $("when").value, stops: $("stops").value, notes: $("notes").value, dir: pick.dir, from: pick.from, to: pick.to, edited: pick.edited, track: trackPts };
     try { await put("drafts", { key: "form", fields, photos: await Promise.all(photos.map((p) => packPhoto(p.blob))) }); } catch { /* draft is best effort */ }
   }, 300);
 }
@@ -424,7 +475,7 @@ async function restoreDraft() {
     pick.from = f.from || 0; pick.to = f.to ?? pick.data[pick.dir].s.length - 1;
     $("from").value = String(pick.from); $("to").value = String(pick.to); renderDirs();
   }
-  $("stops").value = f.stops || ""; pick.edited = !!f.edited;
+  $("stops").value = f.stops || ""; pick.edited = !!f.edited; trackPts = f.track || []; updateTrackUi();
   photos = (d.photos || []).map((p) => { const b = unpackPhoto(p); return { blob: b, url: URL.createObjectURL(b) }; });
   renderThumbs();
 }
@@ -601,7 +652,7 @@ function locate() {
 }
 async function useLocation(which) {
   const m = $("gps-msg"); m.textContent = "Finding you...";
-  try { pick.pos = await locate(); } catch { m.textContent = "Could not get your location. Pick the stop from the list."; return; }
+  try { pick.pos = await locate(); addPoint(pick.pos[0], pick.pos[1]); } catch { m.textContent = "Could not get your location. Pick the stop from the list."; return; }
   if (which === "from") {
     // Both directions show their nearest stop; pick the direction whose stop is clearly closer.
     const n = pick.data.map((_, i) => nearest(i));
@@ -618,9 +669,44 @@ async function useLocation(which) {
 $("gps-from").onclick = () => useLocation("from");
 $("gps-to").onclick = () => useLocation("to");
 
+// ---------- GPS proof ----------
+let trackPts = [], watchId = null; // [lat, lon, epoch seconds]
+const decimate = (a, n = 300) => (a.length <= n ? a.slice() : a.filter((_, i) => i % Math.ceil(a.length / n) === 0 || i === a.length - 1));
+function updateTrackUi() {
+  $("track-status").textContent = trackPts.length ? `${trackPts.length} GPS points${watchId !== null ? ", recording. Keep the app open." : ""}` : "";
+  $("track-btn").textContent = watchId !== null ? "Stop recording" : "Record my track";
+}
+function addPoint(lat, lon, ms = Date.now()) {
+  trackPts.push([+lat.toFixed(5), +lon.toFixed(5), Math.round(ms / 1000)]);
+  trackPts.sort((a, b) => a[2] - b[2]); updateTrackUi(); saveDraft();
+}
+function stopTrack() { if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; } }
+$("track-btn").onclick = () => {
+  if (watchId !== null) { stopTrack(); updateTrackUi(); return; }
+  if (!navigator.geolocation) { $("track-status").textContent = "No GPS on this device."; return; }
+  let last = 0;
+  watchId = navigator.geolocation.watchPosition(
+    (p) => { if (p.coords.accuracy > 100 || Date.now() - last < 10000) return; last = Date.now(); addPoint(p.coords.latitude, p.coords.longitude, p.timestamp); },
+    () => { stopTrack(); updateTrackUi(); $("track-status").textContent = "GPS unavailable. Check the location permission."; },
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+  updateTrackUi();
+};
+$("gpx-btn").onclick = () => $("gpx-file").click();
+$("gpx-file").addEventListener("change", async (ev) => {
+  const f = ev.target.files[0]; if (!f) return;
+  const doc = new DOMParser().parseFromString(await f.text(), "application/xml");
+  const pts = [...doc.getElementsByTagName("trkpt")].map((n) => {
+    const t = n.getElementsByTagName("time")[0];
+    return [parseFloat(n.getAttribute("lat")), parseFloat(n.getAttribute("lon")), t ? Math.round(Date.parse(t.textContent) / 1000) : 0];
+  }).filter((p) => isFinite(p[0]) && isFinite(p[1]));
+  if (!pts.length) { $("track-status").textContent = "No track points in that file. Export a GPX from Garmin Connect."; }
+  else { trackPts = decimate(pts); trackPts.sort((a, b) => a[2] - b[2]); updateTrackUi(); saveDraft(); $("track-status").textContent += " (from the GPX file)"; }
+  ev.target.value = "";
+});
+
 // ---------- save / edit ----------
 function resetForm() {
-  editing = null;
+  editing = null; stopTrack(); trackPts = []; updateTrackUi();
   $("form").reset();
   photos.forEach((p) => URL.revokeObjectURL(p.url)); photos = []; renderThumbs();
   pick.data = null; buildPicker();
@@ -633,7 +719,7 @@ function startEdit(e) {
   $("line").value = e.line; $("plate").value = e.plate; $("when").value = toLocalInput(new Date(e.time));
   buildPicker();
   if (pick.data && e.dir) { const i = pick.data.findIndex((d) => d.to === e.dir); if (i >= 0) { pick.dir = i; fillSelects(); renderDirs(); } }
-  $("stops").value = e.stops.join("\n"); pick.edited = true; $("notes").value = e.notes;
+  $("stops").value = e.stops.join("\n"); pick.edited = true; $("notes").value = e.notes; trackPts = (e.track || []).slice(); updateTrackUi();
   photos = e.photos.map((b) => ({ blob: b, url: URL.createObjectURL(b) })); renderThumbs();
   $("cancel-edit").hidden = false; $("save").textContent = "Update ride"; $("h-log").textContent = "Edit ride";
   show("log");
@@ -654,7 +740,7 @@ $("form").addEventListener("submit", async (ev) => {
   const entry = {
     line, plate, time: new Date($("when").value).toISOString(),
     dir: pick.data ? pick.data[pick.dir].to : "",
-    stops: parseStops($("stops").value), notes: $("notes").value.trim(), photos: await Promise.all(photos.map((p) => packPhoto(p.blob))),
+    track: decimate(trackPts), stops: parseStops($("stops").value), notes: $("notes").value.trim(), photos: await Promise.all(photos.map((p) => packPhoto(p.blob))),
   };
   if (editing) entry.id = editing.id;
   try { await put("entries", entry); } catch { return msg("Could not save on this device (storage blocked or full).", true); }
@@ -713,13 +799,19 @@ $("update-btn").onclick = async () => {
   } catch { msg.textContent = "Could not check. Try again with a connection."; }
 };
 
+// Tapping outside a sheet closes it.
+document.querySelectorAll("dialog.sheet").forEach((d) => d.addEventListener("click", (e) => {
+  const r = d.getBoundingClientRect();
+  if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) d.close();
+}));
+
 // ---------- boot ----------
 document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => { show(b.dataset.view); b.focus(); }));
 ["lines", "plates"].forEach((k) => $("q-" + k).addEventListener("input", () => renderMissing(k)));
 
 (async function init() {
   db = await openDb();
-  [catalog, stopData] = await Promise.all([loadCatalog(), loadStops()]);
+  [catalog, stopData, serviceData] = await Promise.all([loadCatalog(), loadStops(), loadService()]);
   try { const rt = (await (await fetch("data/routes.json")).json()).routes; routeNames = Object.fromEntries(Object.entries(rt).map(([id, r]) => [id, r.name])); } catch { /* live status shows the route id */ }
   showVersion();
   await reload();

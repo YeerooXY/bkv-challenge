@@ -11,6 +11,9 @@ from collections import defaultdict
 from pathlib import Path
 
 OUT = Path(__file__).parents[1] / "data" / "stops.json"
+SERVICE = Path(__file__).parents[1] / "data" / "service.json"
+# Typical days used for "trips per hour": a Tuesday, a Saturday and a Sunday without holidays.
+DAYS = {"wd": "20261117", "sa": "20261121", "su": "20261122"}
 PRIORITY = ["SUBWAY", "TRAM", "TROLLEYBUS", "HEV", "FERRY", "BUS"]
 SAMPLES = 14  # trips sampled per route and direction; the longest one is the full route
 
@@ -28,11 +31,19 @@ def build(z, routes):
             best[r["name"]] = r["type"]
     line_of = {rid: r["name"] for rid, r in routes.items() if best[r["name"]] == r["type"]}
 
+    active = {k: set() for k in DAYS}  # day type -> service ids running that day
+    for r in rows(z, "calendar_dates.txt"):
+        for k, d in DAYS.items():
+            if r["date"] == d and r["exception_type"] == "1":
+                active[k].add(r["service_id"])
+
     trips = defaultdict(list)  # (line, direction) -> [(trip_id, headsign)]
+    trip_info = {}  # trip_id -> (line, service_id) for the departures-per-hour count
     for t in rows(z, "trips.txt"):
         line = line_of.get(t["route_id"])
         if line:
             trips[(line, t["direction_id"] or "0")].append((t["trip_id"], t["trip_headsign"]))
+            trip_info[t["trip_id"]] = (line, t["service_id"])
     wanted = {}  # trip_id -> (line, direction, headsign)
     for key, lst in trips.items():
         step = max(1, len(lst) // SAMPLES)
@@ -40,9 +51,23 @@ def build(z, routes):
             wanted[trip_id] = (key[0], key[1], head)
 
     seqs = defaultdict(list)
+    first = {}  # trip_id -> (stop_sequence, departure hour)
     for r in rows(z, "stop_times.txt"):
-        if r["trip_id"] in wanted:
-            seqs[r["trip_id"]].append((int(r["stop_sequence"]), r["stop_id"]))
+        tid = r["trip_id"]
+        if tid in wanted:
+            seqs[tid].append((int(r["stop_sequence"]), r["stop_id"]))
+        if tid in trip_info:
+            seq = int(r["stop_sequence"])
+            if tid not in first or seq < first[tid][0]:
+                first[tid] = (seq, int(r["departure_time"][:2]) % 24)
+
+    service = defaultdict(lambda: {k: [0] * 24 for k in DAYS})
+    for tid, (_, hour) in first.items():
+        line, sid = trip_info[tid]
+        for k in DAYS:
+            if sid in active[k]:
+                service[line][k][hour] += 1
+    SERVICE.write_text(json.dumps(service, separators=(",", ":")), encoding="utf-8")
 
     longest = {}  # (line, direction) -> (headsign, [stop ids])
     for trip_id, seq in seqs.items():

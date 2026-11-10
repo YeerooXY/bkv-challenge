@@ -41,7 +41,7 @@ def load_routes():
     if not local and ROUTES.exists():
         data = json.loads(ROUTES.read_text(encoding="utf-8"))
         fresh = (date.today() - date.fromisoformat(data["fetched"])).days < REFRESH_DAYS
-        if fresh and "color" in next(iter(data["routes"].values())) and gtfs_stops.OUT.exists():
+        if fresh and "color" in next(iter(data["routes"].values())) and gtfs_stops.OUT.exists() and gtfs_stops.SERVICE.exists():
             return data["routes"]
     if local:
         raw = Path(local).read_bytes()
