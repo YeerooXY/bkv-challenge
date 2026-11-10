@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@capacitor/android": "latest",
+    "@capacitor/camera": "latest",
     "@capacitor/cli": "latest",
     "@capacitor/core": "latest"
   }

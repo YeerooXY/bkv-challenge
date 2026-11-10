@@ -1,10 +1,11 @@
 """Update data/catalog.json from the BKK feeds.
 
-- Lines: official BKK timetable (data/routes.json, refreshed weekly).
+- Lines: official BKK timetable (data/routes.json, refreshed weekly) with their colors,
+  plus the stops of every line in both directions (data/stops.json).
 - Plates: vehicles in the live feed are merged in; plates are never removed.
 
 Needs the BKK_API_KEY environment variable (https://opendata.bkk.hu/).
-Usage: python tools/update_catalog.py
+Usage: python tools/update_catalog.py   (GTFS_ZIP=path reuses a downloaded timetable and forces a refresh)
 """
 import csv
 import io
@@ -18,6 +19,9 @@ from pathlib import Path
 import requests
 from google.transit import gtfs_realtime_pb2
 
+sys.path.insert(0, str(Path(__file__).parent))
+import gtfs_stops
+
 ROOT = Path(__file__).parents[1]
 CATALOG = ROOT / "data" / "catalog.json"
 ROUTES = ROOT / "data" / "routes.json"
@@ -30,15 +34,27 @@ REFRESH_DAYS = 7
 
 
 def load_routes():
-    if ROUTES.exists():
+    local = os.environ.get("GTFS_ZIP")
+    if not local and ROUTES.exists():
         data = json.loads(ROUTES.read_text(encoding="utf-8"))
-        if (date.today() - date.fromisoformat(data["fetched"])).days < REFRESH_DAYS:
+        fresh = (date.today() - date.fromisoformat(data["fetched"])).days < REFRESH_DAYS
+        if fresh and "color" in next(iter(data["routes"].values())) and gtfs_stops.OUT.exists():
             return data["routes"]
-    resp = requests.get(GTFS_URL, timeout=300)
-    resp.raise_for_status()
-    with zipfile.ZipFile(io.BytesIO(resp.content)) as z:
+    if local:
+        raw = Path(local).read_bytes()
+    else:
+        resp = requests.get(GTFS_URL, timeout=300)
+        resp.raise_for_status()
+        raw = resp.content
+    with zipfile.ZipFile(io.BytesIO(raw)) as z:
         rows = csv.DictReader(io.TextIOWrapper(z.open("routes.txt"), encoding="utf-8-sig"))
-        routes = {r["route_id"]: {"name": r["route_short_name"], "type": TYPES.get(r["route_type"], "UNKNOWN")} for r in rows}
+        routes = {
+            r["route_id"]: {"name": r["route_short_name"], "type": TYPES.get(r["route_type"], "UNKNOWN"),
+                            "color": r["route_color"] or "009EE3", "text": r["route_text_color"] or "FFFFFF"}
+            for r in rows
+        }
+        n_lines, n_stops = gtfs_stops.build(z, routes)
+        print(f"stops: {n_lines} lines, {n_stops} stops")
     ROUTES.write_text(json.dumps({"fetched": date.today().isoformat(), "routes": routes}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     return routes
 
@@ -65,8 +81,8 @@ def main():
 
     lines = {}
     for r in routes.values():
-        if r["name"] not in lines or PRIORITY.index(r["type"]) < PRIORITY.index(lines[r["name"]]):
-            lines[r["name"]] = r["type"]
+        if r["name"] not in lines or PRIORITY.index(r["type"]) < PRIORITY.index(lines[r["name"]]["type"]):
+            lines[r["name"]] = r
 
     old = json.loads(CATALOG.read_text(encoding="utf-8")) if CATALOG.exists() else {"plates": []}
     plates = {p["plate"]: p for p in old["plates"]}
@@ -84,7 +100,7 @@ def main():
                 p["lines"] = sorted(p["lines"] + [routes[route]["name"]])
 
     out = {
-        "lines": [{"id": k, "label": k, "type": v} for k, v in sorted(lines.items())],
+        "lines": [{"id": k, "label": k, "type": v["type"], "color": v["color"], "text": v["text"]} for k, v in sorted(lines.items())],
         "plates": sorted(plates.values(), key=lambda p: p["plate"]),
     }
     CATALOG.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
