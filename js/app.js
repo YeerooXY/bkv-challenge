@@ -299,8 +299,10 @@ function hoursChart(h, unit) {
 }
 const dayType = () => { const d = budapestNow().getDay(); return d === 0 ? "su" : d === 6 ? "sa" : "wd"; };
 
+const TT_ALIAS = { "4": "4-6", "6": "4-6" }; // BKK runs trams 4 and 6 together as "4-6"
 function timetableSection(id) {
-  const dirs = stopData.lines[id] || [], tt = timetable[id] || [];
+  const real = TT_ALIAS[id] || id;
+  const dirs = stopData.lines[real] || [], tt = timetable[real] || [];
   if (!tt.length) return el("p", "sub", "No timetable data for this line.");
   const box = el("div"), pick1 = el("div", "chips"), days = el("div", "chips"), table = el("div", "tt");
   const usable = tt.map((d, i) => i).filter((i) => Object.values(tt[i]).some((day) => Object.keys(day).length));
@@ -332,7 +334,9 @@ function timetableSection(id) {
     const to = dirs[di] ? dirs[di].to : "";
     table.prepend(el("p", "sub", `Departures${to ? " towards " + to : ""}. Hour, then minutes.`));
   };
-  paint(); box.append(pick1, days, table); return box;
+  paint(); box.append(pick1, days, table);
+  if (real !== id) box.prepend(el("p", "sub", `BKK runs this tram together with the others as ${real}. This is the ${real} timetable.`));
+  return box;
 }
 
 function showDetail(kind, o) {

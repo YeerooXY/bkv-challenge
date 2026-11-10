@@ -34,6 +34,11 @@ def outside_budapest(stop_name: str, lat: float, lon: float) -> bool:
     return 2 * 6371 * math.asin(math.sqrt(h)) > OUTSIDE_KM
 
 
+# BKK splits one service into several ids: tram 4 and 6 run all day as "4-6", while "4" only holds a few late trips.
+# Lines in a group are rated on their pooled trips, so the night id of a busy line is not rare.
+ALIAS_GROUPS = [("4", "6", "4-6")]
+
+
 def line_rarity(weekday_trips, ends, night_share):
     """Returns (tier, reasons). ends: one boolean per line end, True if that end is outside Budapest.
     Reasons: night, out2 (both ends outside Budapest), out1 (one end outside), few (12 trips a weekday or fewer)."""

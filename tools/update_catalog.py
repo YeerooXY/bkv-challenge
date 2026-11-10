@@ -165,7 +165,7 @@ def main():
     svc = json.loads(gtfs_stops.SERVICE.read_text(encoding="utf-8"))
     line_tier, line_why = {}, {}
     for lid, dirs in stops_json["lines"].items():
-        wd = svc.get(lid, {}).get("wd", [0] * 24)
+        wd = [sum(svc.get(g, {}).get("wd", [0] * 24)[h] for g in next((grp for grp in rarity.ALIAS_GROUPS if lid in grp), (lid,))) for h in range(24)]
         total = sum(wd) or 1
         night = sum(wd[h] for h in (23, 0, 1, 2, 3, 4)) / total
         ends = [rarity.outside_budapest(*stops_json["stops"][d["s"][i]]) for d in dirs for i in (0, -1)]
