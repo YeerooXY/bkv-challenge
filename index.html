@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<title>BKV Challenge</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<main id="app">
+  <section id="view-log" class="view" aria-labelledby="h-log">
+    <h1 id="h-log" tabindex="-1">Log a ride</h1>
+    <form id="form" novalidate>
+      <label for="line">Line</label>
+      <input id="line" list="lines-dl" autocomplete="off" autocapitalize="characters" required>
+      <label for="plate">License plate</label>
+      <input id="plate" list="plates-dl" autocomplete="off" autocapitalize="characters" required>
+      <datalist id="lines-dl"></datalist><datalist id="plates-dl"></datalist>
+      <label for="when">When</label>
+      <input id="when" type="datetime-local" required>
+      <label for="stops">Stops travelled (one per line or comma separated)</label>
+      <textarea id="stops" rows="3"></textarea>
+      <label for="photos">Photos (at least one)</label>
+      <input id="photos" type="file" accept="image/*" capture="environment" multiple>
+      <ul id="thumbs" class="thumbs"></ul>
+      <label for="notes">Notes: looks, feel, condition</label>
+      <textarea id="notes" rows="4"></textarea>
+      <p id="msg" role="status" aria-live="polite"></p>
+      <div class="row">
+        <button id="save" type="submit" class="primary">Save ride</button>
+        <button id="cancel-edit" type="button" hidden>Cancel edit</button>
+      </div>
+    </form>
+  </section>
+
+  <section id="view-lines" class="view" aria-labelledby="h-lines" hidden>
+    <h1 id="h-lines" tabindex="-1">Missing lines</h1>
+    <div class="tools"><input type="search" id="q-lines" placeholder="Search lines" aria-label="Search missing lines"><div class="chips" data-for="lines"></div></div>
+    <div id="list-lines"></div>
+  </section>
+
+  <section id="view-plates" class="view" aria-labelledby="h-plates" hidden>
+    <h1 id="h-plates" tabindex="-1">Missing plates</h1>
+    <div class="tools"><input type="search" id="q-plates" placeholder="Search plates" aria-label="Search missing plates"><div class="chips" data-for="plates"></div></div>
+    <div id="list-plates"></div>
+  </section>
+
+  <section id="view-progress" class="view" aria-labelledby="h-progress" hidden>
+    <h1 id="h-progress" tabindex="-1">Progress</h1>
+    <div id="progress"></div>
+    <h2>Daily</h2>
+    <table id="daily"><thead><tr><th>Day</th><th>New lines</th><th>New plates</th></tr></thead><tbody></tbody></table>
+    <h2>Backup</h2>
+    <div class="row"><button id="export" type="button">Export JSON</button><button id="import-btn" type="button">Import JSON</button><input id="import" type="file" accept="application/json" hidden></div>
+  </section>
+
+  <section id="view-history" class="view" aria-labelledby="h-history" hidden>
+    <h1 id="h-history" tabindex="-1">History</h1>
+    <ul id="history" class="history"></ul>
+  </section>
+</main>
+
+<nav id="tabs" aria-label="Views">
+  <button data-view="log" aria-current="page">Log</button>
+  <button data-view="lines">Lines</button>
+  <button data-view="plates">Plates</button>
+  <button data-view="progress">Progress</button>
+  <button data-view="history">History</button>
+</nav>
+<script src="js/app.js"></script>
+</body>
+</html>
