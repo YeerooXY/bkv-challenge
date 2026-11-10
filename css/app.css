@@ -35,3 +35,9 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:.5rem;bo
 #tabs button{flex:1;min-height:56px;border:0;border-radius:0;background:none;font-size:.85rem}
 #tabs button[aria-current=page]{color:var(--accent);font-weight:700;box-shadow:inset 0 3px 0 var(--accent)}
 [hidden]{display:none!important}
+.combo{position:relative}
+.sug{list-style:none;margin:4px 0 0;padding:4px;position:absolute;left:0;right:0;z-index:5;max-height:42vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.sug li{padding:.65rem .7rem;border-radius:8px;min-height:48px;display:flex;flex-direction:column;justify-content:center;cursor:pointer}
+.sug li[aria-selected=true]{background:var(--accent);color:var(--accent-fg)}
+.sug .sub{font-size:.85rem;color:var(--muted)}.sug li[aria-selected=true] .sub{color:inherit}
+.sug .new{font-weight:600}

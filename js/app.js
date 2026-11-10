@@ -45,7 +45,6 @@ async function reload() {
     .map((e) => ({ ...e, photos: e.photos.map((p) => (p instanceof Blob ? p : new Blob([p.data], { type: p.type }))) }))
     .sort((a, b) => b.time.localeCompare(a.time));
   extras = await getAll("extras");
-  fillDatalists();
 }
 
 // ---------- catalog ----------
@@ -59,12 +58,81 @@ const allPlates = () => {
   extras.filter((e) => e.kind === "plate").forEach((e) => m.set(e.value, { plate: e.value, type: e.type || "OTHER" }));
   return [...m.values()];
 };
-function fillDatalists() {
-  $("lines-dl").replaceChildren(...allLines().map((l) => Object.assign(document.createElement("option"), { value: l.id })));
-  $("plates-dl").replaceChildren(...allPlates().map((p) => Object.assign(document.createElement("option"), { value: p.plate })));
-}
 const clearedLines = () => new Set(entries.map((e) => normLine(e.line)));
 const clearedPlates = () => new Set(entries.map((e) => normPlate(e.plate)));
+
+// ---------- smart search ----------
+// Matching ignores spaces/case and treats the letter O and digit 0 as the same character.
+const sKey = (t) => t.replace(/[\s-]+/g, "").toUpperCase().replace(/O/g, "0");
+
+function attachSuggest(input, list, getMatches, onPick) {
+  let items = [], active = -1;
+  const close = () => { list.hidden = true; input.setAttribute("aria-expanded", "false"); input.removeAttribute("aria-activedescendant"); active = -1; };
+  const mark = () => items.forEach((it, i) => { it.el.setAttribute("aria-selected", String(i === active)); });
+  function render() {
+    const raw = input.value.trim();
+    if (!raw) return close();
+    items = getMatches(raw).map((m, i) => {
+      const el = document.createElement("li"); el.id = `${list.id}-${i}`; el.setAttribute("role", "option");
+      const main = document.createElement("span"); main.textContent = m.label;
+      el.append(main);
+      if (m.sub) el.append(Object.assign(document.createElement("span"), { className: "sub", textContent: m.sub }));
+      if (m.isNew) main.className = "new";
+      el.addEventListener("pointerdown", (e) => { e.preventDefault(); pick(i); });
+      return { ...m, el };
+    });
+    if (!items.length) return close();
+    list.replaceChildren(...items.map((i) => i.el)); list.hidden = false;
+    input.setAttribute("aria-expanded", "true"); active = -1; mark();
+  }
+  function pick(i) { const it = items[i]; if (!it) return; input.value = it.value; close(); onPick && onPick(it); }
+  input.addEventListener("input", render);
+  input.addEventListener("focus", render);
+  input.addEventListener("blur", () => setTimeout(close, 120));
+  input.addEventListener("keydown", (e) => {
+    if (list.hidden) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); active = (active + 1) % items.length; }
+    else if (e.key === "ArrowUp") { e.preventDefault(); active = (active - 1 + items.length) % items.length; }
+    else if (e.key === "Enter" && active >= 0) { e.preventDefault(); return pick(active); }
+    else if (e.key === "Escape") { e.preventDefault(); return close(); }
+    else return;
+    input.setAttribute("aria-activedescendant", items[active].el.id); items[active].el.scrollIntoView({ block: "nearest" }); mark();
+  });
+}
+
+// Riders usually type the start or the last digits of a plate.
+const rank = (k, q) => (k.startsWith(q) ? 0 : k.endsWith(q) ? 1 : 2);
+
+function plateMatches(raw) {
+  const q = sKey(raw), cleared = clearedPlates();
+  const res = allPlates().map((p) => ({ p, k: sKey(p.plate) })).filter((x) => x.k.includes(q))
+    .sort((a, b) => rank(a.k, q) - rank(b.k, q) || a.k.length - b.k.length || (cleared.has(a.p.plate) - cleared.has(b.p.plate)) || a.p.plate.localeCompare(b.p.plate))
+    .slice(0, 8)
+    .map(({ p }) => ({
+      value: p.plate, label: p.plate, plate: p,
+      sub: [TYPES[typeOf(p.type)], (p.lines || []).slice(0, 4).join(", "), cleared.has(p.plate) ? "already ridden" : "not ridden yet"].filter(Boolean).join(" · "),
+    }));
+  const norm = normPlate(raw);
+  if (!allPlates().some((p) => p.plate === norm)) res.push({ value: norm, label: `Add "${norm}" as a new plate`, isNew: true });
+  return res;
+}
+
+function lineMatches(raw) {
+  const q = sKey(raw), cleared = clearedLines();
+  const res = allLines().filter((l) => sKey(l.id).includes(q))
+    .sort((a, b) => ((sKey(b.id) === q) - (sKey(a.id) === q)) || (sKey(b.id).startsWith(q) - sKey(a.id).startsWith(q)) || a.id.localeCompare(b.id, "hu", { numeric: true }))
+    .slice(0, 8)
+    .map((l) => ({ value: l.id, label: l.id, sub: `${TYPES[typeOf(l.type)]} · ${cleared.has(l.id) ? "already ridden" : "not ridden yet"}` }));
+  const norm = normLine(raw);
+  if (!allLines().some((l) => l.id === norm)) res.push({ value: norm, label: `Add "${norm}" as a new line`, isNew: true });
+  return res;
+}
+
+attachSuggest($("line"), $("line-sug"), lineMatches);
+attachSuggest($("plate"), $("plate-sug"), plateMatches, (it) => {
+  // A plate that has only ever been seen on one line fills the line for you.
+  if (it.plate && !$("line").value.trim() && it.plate.lines && it.plate.lines.length === 1) $("line").value = it.plate.lines[0];
+});
 
 // ---------- views ----------
 function show(view, focusHeading = true) {

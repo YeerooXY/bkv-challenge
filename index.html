@@ -17,10 +17,9 @@
     <h1 id="h-log" tabindex="-1">Log a ride</h1>
     <form id="form" novalidate>
       <label for="line">Line</label>
-      <input id="line" list="lines-dl" autocomplete="off" autocapitalize="characters" required>
+      <div class="combo"><input id="line" role="combobox" aria-expanded="false" aria-controls="line-sug" aria-autocomplete="list" autocomplete="off" autocapitalize="characters" required><ul id="line-sug" class="sug" role="listbox" aria-label="Line suggestions" hidden></ul></div>
       <label for="plate">License plate</label>
-      <input id="plate" list="plates-dl" autocomplete="off" autocapitalize="characters" required>
-      <datalist id="lines-dl"></datalist><datalist id="plates-dl"></datalist>
+      <div class="combo"><input id="plate" role="combobox" aria-expanded="false" aria-controls="plate-sug" aria-autocomplete="list" autocomplete="off" autocapitalize="characters" spellcheck="false" required><ul id="plate-sug" class="sug" role="listbox" aria-label="Plate suggestions" hidden></ul></div>
       <label for="when">When</label>
       <input id="when" type="datetime-local" required>
       <label for="stops">Stops travelled (one per line or comma separated)</label>
