@@ -184,7 +184,7 @@ ul.plain{padding-left:1.1rem;margin:.3rem 0}
 @media (prefers-reduced-motion:reduce){#tabs .pill{transition:none}}
 
 /* ---------- rarity ---------- */
-:root{--r1:#3fa968;--r2:#2f7df6;--r3:#a24df0;--r4:#f2b200;--r5:#ff2d95;--r6:#19d3da}
+:root{--r7:#d1001f;--r1:#3fa968;--r2:#2f7df6;--r3:#a24df0;--r4:#f2b200;--r5:#ff2d95;--r6:#19d3da}
 .r1{--rc:var(--r1)}.r2{--rc:var(--r2)}.r3{--rc:var(--r3)}.r4{--rc:var(--r4)}.r5{--rc:var(--r5)}.r6{--rc:var(--r6)}
 .tile.r1,.tile.r2,.tile.r3,.tile.r4,.tile.r5,.tile.r6{border-color:var(--rc)}
 .tile .gem{position:absolute;left:8px;bottom:8px;width:10px;height:10px;background:var(--rc);transform:rotate(45deg);border-radius:2px}
@@ -268,3 +268,17 @@ dialog.catch::backdrop{background:rgba(0,0,0,.6)}
 .chips.rar button[aria-pressed=true]{background:var(--rc,var(--accent));color:#fff}
 .chips.rar button.r4[aria-pressed=true]{color:#201800}
 .modelpick{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);margin:0}.modelpick summary{padding:.8rem 1rem;min-height:52px;display:flex;align-items:center;cursor:pointer}.modelpick[open] summary{border-bottom:1px solid var(--line)}.modelpick .mcards{padding:.7rem}
+
+/* nightmare: night lines that leave Budapest */
+.r7{--rc:var(--r7)}
+.tile.r7{border:3px solid var(--r7);background:#12060a;box-shadow:0 0 0 1px #000 inset,0 0 16px rgba(209,0,31,.5);animation:throb 2.6s ease-in-out infinite}
+.tile.r7 .num{color:#ffb8c2}.tile.r7 .mark{background:#2a0b12;color:#ffb8c2}.tile.r7 .gem{background:#ff3b57}
+.tile.r7.done{background:#7d0014;border-color:#ff3b57}.tile.r7.done .num{color:#fff}
+@keyframes throb{0%,100%{box-shadow:0 0 0 1px #000 inset,0 0 10px rgba(209,0,31,.35)}50%{box-shadow:0 0 0 1px #000 inset,0 0 26px rgba(209,0,31,.8)}}
+.chips.rar button.r7{box-shadow:inset 0 0 0 2px var(--r7)}
+.chips.rar button.r7[aria-pressed=true]{background:var(--r7);color:#fff}
+.catchcard.r7{background:#12060a;color:#ffd9de;border-color:var(--r7);box-shadow:0 0 80px rgba(209,0,31,.85);animation:pop .45s cubic-bezier(.2,1.4,.4,1),throb2 2s ease-in-out infinite}
+.catchcard.r7 .catch-kicker{color:#ff5a72;letter-spacing:.14em}.catchcard.r7 .catch-why{color:#ffb8c2}
+@keyframes throb2{0%,100%{box-shadow:0 0 50px rgba(209,0,31,.6)}50%{box-shadow:0 0 100px rgba(209,0,31,1)}}
+.tierbox.r7{background:#12060a;color:#ffd9de}.tierbox.r7 ul{color:#ffd9de}
+@media (prefers-reduced-motion:reduce){.tile.r7,.catchcard.r7{animation:none}}

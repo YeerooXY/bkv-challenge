@@ -237,8 +237,8 @@ function renderChips(kind) {
 }
 
 const byName = (a, b) => a.localeCompare(b, "hu", { numeric: true });
-const TIER_NAMES = ["Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Artifact"];
-const tierOf = (o) => Math.min(6, Math.max(0, o.r || 0));
+const TIER_NAMES = ["Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Artifact", "Nightmare"];
+const tierOf = (o) => Math.min(TIER_NAMES.length - 1, Math.max(0, o.r || 0));
 // HEV ids are train formations that come and go, so they have no meaningful idle time.
 const idleDays = (p) => (p.ll && p.m !== "HEV unit" ? Math.max(0, Math.floor((Date.now() - Date.parse(p.ll)) / 86400000)) : 0);
 function rarityWhy(kind, o) {
@@ -250,7 +250,7 @@ function rarityWhy(kind, o) {
     const days = idleDays(o);
     if (days >= 3) why.push(`Not signed on for ${days} days`);
   } else {
-    const t = { night: "Night line", out2: "Starts and ends outside Budapest", out1: "Reaches outside Budapest", few: "Only a handful of trips a day" };
+    const t = { night: "Night line", out2: "Starts and ends outside Budapest", out1: "Reaches outside Budapest", few: "Only a handful of trips a day", nightmare: "A night line that starts and ends outside Budapest: a whole night of riding" };
     (o.rw || []).forEach((c) => t[c] && why.push(t[c]));
   }
   return why;
@@ -463,7 +463,7 @@ function renderMissing(kind) {
   const pre = (kind === "lines" ? allLines().map((l) => ({ k: l.id, type: l.type, o: l })) : allPlates().map((p) => ({ k: p.plate, type: p.type, o: p })))
     .filter((i) => (filters[kind] === "ALL" || typeOf(i.type) === filters[kind]) && (!q || i.k.replace(/\s+/g, "").includes(q)) && (kind !== "plates" || !filters.model || i.o.m === filters.model));
   // Rarity chips show how many items each tier has under the other filters; one tier can be picked.
-  const tierCount = Array(7).fill(0); pre.forEach((i) => tierCount[tierOf(i.o)]++);
+  const tierCount = Array(TIER_NAMES.length).fill(0); pre.forEach((i) => tierCount[tierOf(i.o)]++);
   const rbox = document.querySelector(`.chips[data-rar="${kind}"]`);
   rbox.replaceChildren(...[[-1, "Any rarity", pre.length], ...TIER_NAMES.map((n, t) => [t, n, tierCount[t]])].filter(([t, , n]) => t === -1 || n > 0 || filters.rarity[kind] === t).map(([t, name, n]) => {
     const b = el("button", t > 0 ? "r" + t : "", `${name} ${n}`); b.type = "button"; b.setAttribute("aria-pressed", String(filters.rarity[kind] === t));
@@ -865,10 +865,10 @@ function showCatch(c) {
   const tiles = el("div", "catch-tiles"); top.forEach((i) => tiles.append(collTile(i.kind, i.o, "done"))); card.append(tiles);
   const why = [...new Set(top.flatMap((i) => rarityWhy(i.kind === "lines" ? "line" : "plate", i.o)))];
   if (why.length) card.append(el("p", "catch-why", why.join(". ") + "."));
-  for (let i = 0; i < (c.best >= 5 ? 28 : 14); i++) { const p = el("span", "spark"); p.style.setProperty("--x", (6 + Math.round(Math.random() * 88)) + "%"); p.style.setProperty("--d", (Math.random() * 1.4).toFixed(2) + "s"); p.style.setProperty("--s", (6 + Math.round(Math.random() * 8)) + "px"); card.append(p); }
+  for (let i = 0; i < (c.best >= 7 ? 36 : c.best >= 5 ? 28 : 14); i++) { const p = el("span", "spark"); p.style.setProperty("--x", (6 + Math.round(Math.random() * 88)) + "%"); p.style.setProperty("--d", (Math.random() * 1.4).toFixed(2) + "s"); p.style.setProperty("--s", (6 + Math.round(Math.random() * 8)) + "px"); card.append(p); }
   const ok = el("button", "primary", "Nice"); ok.type = "button"; ok.onclick = () => d.close(); card.append(ok);
   d.replaceChildren(card); d.showModal(); ok.focus();
-  if (navigator.vibrate) navigator.vibrate(c.best >= 6 ? [120, 60, 120, 60, 120, 60, 500] : c.best >= 5 ? [100, 60, 100, 60, 320] : c.best >= 4 ? [80, 50, 80, 50, 220] : c.best === 3 ? [70, 40, 160] : [60]);
+  if (navigator.vibrate) navigator.vibrate(c.best >= 7 ? [250, 100, 250, 100, 250, 100, 900] : c.best >= 6 ? [120, 60, 120, 60, 120, 60, 500] : c.best >= 5 ? [100, 60, 100, 60, 320] : c.best >= 4 ? [80, 50, 80, 50, 220] : c.best === 3 ? [70, 40, 160] : [60]);
 }
 $("catch").addEventListener("click", (e) => { if (e.target === $("catch")) $("catch").close(); });
 $("catch").addEventListener("close", () => setTimeout(() => $("line").focus(), 30));

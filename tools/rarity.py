@@ -1,13 +1,14 @@
-"""Rarity tiers: 0 common, 1 uncommon, 2 rare, 3 epic, 4 legendary, 5 mythic, 6 artifact.
+"""Rarity tiers: 0 common, 1 uncommon, 2 rare, 3 epic, 4 legendary, 5 mythic, 6 artifact, 7 nightmare.
 
 Plates: how long since the vehicle last signed on (3 days uncommon, 7 rare, 14 legendary, 30 mythic,
 90 artifact), pushed up when few vehicles of its model exist; heritage buses are at least legendary.
 Lines: night service, terminals out in the agglomeration, very few trips. A line that starts AND ends
-outside Budapest is mythic; a night line that does is an artifact.
+outside Budapest is mythic. A night line that starts AND ends outside Budapest is a nightmare:
+a whole night of riding.
 """
 from datetime import date
 
-TIERS = ["common", "uncommon", "rare", "epic", "legendary", "mythic", "artifact"]
+TIERS = ["common", "uncommon", "rare", "epic", "legendary", "mythic", "artifact", "nightmare"]
 
 # Towns around Budapest. A stop named "Town, Stop" belongs to that town.
 AGGLOMERATION = {
@@ -55,7 +56,10 @@ def line_rarity(weekday_trips, ends, night_share):
         score += 1; why.append("few")
     tier = min(score, 4)
     if out2:
-        tier = 6 if night else 5
+        tier = 5
+    if night and out2:
+        tier = 7  # starts AND ends outside Budapest AND runs at night: a whole night of riding
+        why.append("nightmare")
     return tier, why
 
 
