@@ -355,13 +355,31 @@ $("import").addEventListener("change", async (ev) => {
   ev.target.value = ""; $("export").focus();
 });
 
+// ---------- catalog loading ----------
+// The installed Android app bundles a catalog, but the hourly updates live on the website:
+// fetch the newest one when online, remember it, and fall back to the saved or bundled copy.
+const LIVE_CATALOG = "https://yeerooxy.github.io/bkv-challenge/data/catalog.json";
+async function loadCatalog() {
+  const native = location.hostname === "localhost" && location.port === "";
+  try {
+    const r = await fetch(native ? LIVE_CATALOG : "data/catalog.json", { cache: "no-cache" });
+    if (!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    try { localStorage.setItem("catalog", JSON.stringify(data)); } catch { /* storage full: skip the copy */ }
+    return data;
+  } catch {
+    try { const saved = localStorage.getItem("catalog"); if (saved) return JSON.parse(saved); } catch { /* ignore */ }
+    try { return await (await fetch("data/catalog.json")).json(); } catch { return { lines: [], plates: [] }; }
+  }
+}
+
 // ---------- boot ----------
 document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => { show(b.dataset.view); b.focus(); }));
 ["lines", "plates"].forEach((k) => $("q-" + k).addEventListener("input", () => renderMissing(k)));
 
 (async function init() {
   db = await openDb();
-  try { catalog = await (await fetch("data/catalog.json")).json(); } catch { /* offline first run without cache: extras only */ }
+  catalog = await loadCatalog();
   await reload();
   resetForm();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});

@@ -1,0 +1,9 @@
+{
+  "appId": "com.yeeroo.bkvchallenge",
+  "appName": "BKV Challenge",
+  "webDir": "www",
+  "backgroundColor": "#0e1316",
+  "android": {
+    "adjustMarginsForEdgeToEdge": "auto"
+  }
+}

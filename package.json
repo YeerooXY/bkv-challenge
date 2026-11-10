@@ -1,0 +1,14 @@
+{
+  "name": "bkv-challenge",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Android wrapper for the BKV Challenge web app",
+  "scripts": {
+    "prepare-www": "python tools/prepare_www.py"
+  },
+  "dependencies": {
+    "@capacitor/android": "latest",
+    "@capacitor/cli": "latest",
+    "@capacitor/core": "latest"
+  }
+}
