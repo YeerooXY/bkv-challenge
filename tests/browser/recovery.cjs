@@ -5,7 +5,7 @@ const output=require('path').resolve(__dirname, '../../docs/verification/nearby-
 const image=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jwXcAAAAASUVORK5CYII=','base64');
 fs.mkdirSync(require('path').dirname(output),{recursive:true});
 const results=[];
-async function boot(page){await page.goto('http://127.0.0.1:8000',{waitUntil:'networkidle'});await page.waitForFunction(()=>typeof db!=='undefined'&&db&&stopData.stops.length>0&&document.querySelector('#ride-info').textContent.length>0);await page.locator('[data-view=log]').click();}
+async function boot(page){await page.goto('http://127.0.0.1:8000',{waitUntil:'networkidle'});await page.waitForFunction(()=>typeof db!=='undefined'&&db&&stopData.stops.length>0&&document.querySelector('#ride-info').textContent.length>0);await page.locator('[data-view=log]').click();await page.locator('[data-mode=form]').click();}
 async function photo(page){await page.locator('#photo-gallery').setInputFiles({name:'test.png',mimeType:'image/png',buffer:image});await page.waitForFunction(()=>photos.length===1);}
 async function closeCatch(page){if(await page.locator('#catch[open]').count())await page.keyboard.press('Escape');}
 async function waitDraft(page){for(let i=0;i<40;i++){const ready=await page.evaluate(async()=>{const d=await getOne('drafts','form');return !!(d&&d.photos&&d.photos.length===1&&d.fields.notes===document.querySelector('#notes').value)});if(ready)return;await page.waitForTimeout(50);}throw new Error('Photo/form draft was not persisted');}

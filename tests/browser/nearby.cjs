@@ -75,6 +75,7 @@ async function run(name, type, options) {
   await page.waitForFunction(()=>entries.length===1);
   assert.equal(await page.evaluate(()=>rideSession),null);
   await page.locator('[data-view=log]').click();
+  await page.locator('[data-mode=form]').click();
   await page.locator('#line').fill('7');
   await page.locator('#plate').fill('NCA518');
   await page.locator('#ride-board').click();

@@ -12,7 +12,7 @@ const SAVED = "ride-saved:"; // drafts row left by a saved session: its entry id
 const focusRow = (key) => ([...$("nb-list").children].find((x) => x.dataset && x.dataset.key === key) || $("nb-title")).focus();
 
 let nbCfg = { apiBase: "", tiles: "", attribution: "", attributionUrl: "" };
-const nb = { pos: null, cands: [], offset: 0, off: new Set(), arrivals: [], skew: 0, at: 0, failed: null, seq: 0, timer: null, open: null, mode: "form", lines: null };
+const nb = { pos: null, cands: [], offset: 0, off: new Set(), arrivals: [], skew: 0, at: 0, failed: null, seq: 0, timer: null, open: null, mode: "nearby", lines: null, busy: false, last: 0 };
 
 // ---------- config and API ----------
 async function loadNbConfig() {
@@ -24,13 +24,12 @@ async function loadNbConfig() {
 }
 const nbErr = (code) => Object.assign(new Error(code), { code });
 const NB_TEXT = {
-  offline: "Offline. Live arrivals are unavailable.", network: "Could not reach the arrivals service.", absent: "Live arrivals are not set up for this site.",
+  offline: "Offline. Live arrivals are unavailable.", network: "Could not reach the arrivals service.", absent: "Live arrivals are not available yet.",
   nokey: "Live arrivals are not available right now.", busy: "Too many requests. Try again in a minute.", unavailable: "The arrivals service is unavailable right now.",
   format: "The arrivals service sent an unexpected answer.", config: "Live arrivals are not configured.", stops: "Nearby vehicles are not available yet.",
 };
 async function api(path, params) {
-  if (nbCfg.apiBase === null) throw nbErr("config");
-  const q = new URLSearchParams();
+  if (nbCfg.apiBase === null) throw nbErr("config");  const q = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => (Array.isArray(v) ? v : [v]).forEach((x) => q.append(k, x)));
   const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 12000);
   let r;
@@ -38,7 +37,7 @@ async function api(path, params) {
   catch { throw nbErr(navigator.onLine === false ? "offline" : "network"); }
   finally { clearTimeout(timer); }
   // An HTML page (a 404 from a static host, a captive portal) is never an empty list of arrivals.
-  if (!(r.headers.get("content-type") || "").includes("json")) throw nbErr(r.status === 404 ? "absent" : "format");
+  if (!(r.headers.get("content-type") || "").includes("json")) throw nbErr(r.status === 404 || nbCfg.apiBase === "" ? "absent" : "format"); // no service address: the static host answered
   let body; try { body = await r.json(); } catch { throw nbErr("format"); }
   if (!r.ok) throw nbErr(r.status === 429 ? "busy" : body && body.reason === "no-key" ? "nokey" : "unavailable");
   if (!body || body.schemaVersion !== 1) throw nbErr("format");
@@ -69,53 +68,71 @@ function nearbyStops(pos) {
   return out.sort((a, b) => a.m - b.m);
 }
 const stopById = (id) => { const i = stopData.stops.findIndex((s) => s[3] === id); return i < 0 ? null : { i, name: stopData.stops[i][0], lat: stopData.stops[i][1], lon: stopData.stops[i][2] }; };
-const nbSay = (t) => { $("nb-status").textContent = t; };
+const nbSay = (t) => { if ($("nb-status").textContent !== t) $("nb-status").textContent = t; }; // an unchanged status is not announced again
+const NB_PERMANENT = ["absent", "config", "nokey"]; // retrying cannot help until the deployment changes
 const nbFail = (code) => `${NB_TEXT[code] || NB_TEXT.unavailable} Use the Log form to log by hand.`;
 
-async function nbFind() {
-  nbSay("Finding you...");
-  try { nb.pos = await locate(); } catch { return nbSay("Could not get your location. Allow location access, or use the Log form."); }
-  if (!stopData.stops.some((s) => s[3])) return nbSay(nbFail("stops"));
-  nb.cands = nearbyStops(nb.pos); nb.offset = 0; nb.off = new Set();
-  if (!nb.cands.length) { nb.arrivals = []; nbRows(); nbStopChips(); return nbSay("No stops with vehicle data within 1 km of you. Use the Log form."); }
-  await nbLoad(true); nbPoll();
+// One locate + request at a time. `auto` (entering Log, the 30 s timer) keeps the rider's stop choices while the nearby stops are unchanged.
+async function nbFind(auto) {
+  if (nb.busy) return;
+  nb.busy = true; nb.last = Date.now();
+  try {
+    if (!auto || !nb.pos) nbSay("Finding you...");
+    try { nb.pos = await locate(); } catch { return nbSay(navigator.geolocation ? "Could not get your location. Allow location access and press Refresh, or use the Log form." : "This device cannot share its location. Use the Log form."); }
+    if (!stopData.stops.some((s) => s[3])) return nbSay(nbFail("stops"));
+    const cands = nearbyStops(nb.pos), same = cands.length === nb.cands.length && cands.every((c, i) => c.id === nb.cands[i].id);
+    nb.cands = cands;
+    if (!same) { nb.offset = 0; nb.off = new Set(); }
+    if (!cands.length) { nb.arrivals = []; nbRows(); nbStopChips(); nbPoll(); return nbSay("No stops with vehicle data within 1 km of you. Use the Log form."); }
+    await nbLoad(!same); nbPoll();
+  } finally {
+    nb.busy = false;
+    if (nb.mode !== "nearby" || $("view-log").hidden || document.visibilityState !== "visible") nb.last = 0; // the rider left while this ran: refresh on return
+  }
+}
+// Starts a lookup when the Nearby list is on screen and no ride is recording; `force` skips the freshness check (timer, Refresh).
+function nbAuto(force) {
+  if (nb.mode !== "nearby" || $("view-log").hidden || document.visibilityState !== "visible" || sessionRecording() || editing || nb.busy || nb.paused) return;
+  if (force || !nb.last || Date.now() - nb.last >= POLL_MS - 1000) nbFind(true);
 }
 function nbPage() { return nb.cands.slice(nb.offset, nb.offset + PAGE_STOPS); }
 function nbStopChips() {
-  const box = $("nb-stops"), page = nbPage();
-  box.hidden = !page.length;
+  const box = $("nb-stops"), page = nbPage(), idx = box.contains(document.activeElement) ? [...box.children].indexOf(document.activeElement) : -1;
+  $("nb-filter").hidden = !page.length;
+  $("nb-stops-sum").textContent = `Stops, ${page.filter((c) => !nb.off.has(c.id)).length} of ${page.length} selected`;
   box.replaceChildren(...page.map((c) => {
     const heads = [...new Set((stopLines().get(c.i) || []).map((x) => x.to))].slice(0, 3);
     const b = el("button", "", `${c.name}, ${Math.round(c.m)} m${heads.length ? ", toward " + heads.join(" / ") : ""}`); b.type = "button"; b.setAttribute("aria-pressed", String(!nb.off.has(c.id)));
-    b.onclick = () => { nb.off.has(c.id) ? nb.off.delete(c.id) : nb.off.add(c.id); nbStopChips(); nbRows(); box.querySelector(`button:nth-child(${page.indexOf(c) + 1})`).focus(); };
+    b.onclick = () => { nb.off.has(c.id) ? nb.off.delete(c.id) : nb.off.add(c.id); nbStopChips(); nbRows(); };
     return b;
   }));
-  $("nb-more").hidden = nb.offset + PAGE_STOPS >= nb.cands.length;
-  $("nb-more").textContent = "Next stops";
+  if (idx >= 0) (box.children[Math.min(idx, box.children.length - 1)] || $("nb-title")).focus(); // never fall to the page body
+  $("nb-more").hidden = nb.cands.length <= PAGE_STOPS;
+  $("nb-more").textContent = nb.offset + PAGE_STOPS >= nb.cands.length ? "First stops" : "Next stops";
 }
 async function nbLoad(first) {
   const page = nbPage(), seq = ++nb.seq;
   if (!page.length) return;
-  if (first) { nbStopChips(); nbSay("Loading arrivals..."); }
+  if (first) { nb.arrivals = []; nb.at = 0; nb.failed = null; nbStopChips(); nbRows(); nbSay("Loading arrivals..."); } // the cards of the previous page go with its chips
   try {
     const body = await api("/v1/arrivals", { stopId: page.map((c) => c.id) });
     if (seq !== nb.seq) return; // a newer request replaced this one
     if (!Array.isArray(body.arrivals) || !body.arrivals.every(validArrival)) throw nbErr("format");
-    nb.arrivals = body.arrivals; nb.skew = Number.isFinite(body.serverNowMs) ? body.serverNowMs - Date.now() : 0; nb.at = Date.now(); nb.failed = null;
+    nb.arrivals = body.arrivals; nb.skew = Number.isFinite(body.serverNowMs) ? body.serverNowMs - Date.now() : 0; nb.at = Date.now(); nb.failed = null; nb.paused = false;
     nbSay(body.state === "partial" ? "Some stops did not load. Their vehicles are missing from this list." : nb.arrivals.length ? `${nb.arrivals.length} vehicles in the next 30 minutes.` : "No vehicles in the next 30 minutes at these stops.");
     $("nb-credit").hidden = false; $("nb-credit").textContent = `${body.attribution || "Data source: BKK Zrt., CC BY 4.0"}. Updated ${hhmm(Date.now())}.`;
   } catch (e) {
     if (seq !== nb.seq) return;
     nb.failed = e.code || "network";
+    if (NB_PERMANENT.includes(nb.failed)) { nb.paused = true; clearInterval(nb.timer); nb.timer = null; } // only Refresh retries; network errors keep the 30 s retry
     nbSay(nb.arrivals.length ? `${nbFail(nb.failed)} Showing the update from ${hhmm(nb.at)}; times may have changed.` : nbFail(nb.failed));
   }
   nbRows();
 }
 function nbPoll() {
-  clearInterval(nb.timer); nb.timer = null;
-  if (nb.mode !== "nearby" || $("view-log").hidden || !nb.cands.length) return;
-  // No arrival polling during a ride: the rider is already on the vehicle.
-  nb.timer = setInterval(() => { if (document.visibilityState === "visible" && !sessionRecording()) nbLoad(false); }, POLL_MS);
+  if (nb.mode !== "nearby" || $("view-log").hidden || !nb.pos || nb.paused) { clearInterval(nb.timer); nb.timer = null; return; }
+  // No polling during a ride (the rider is already on the vehicle); the tick re-locates, so the stops follow the rider.
+  if (!nb.timer) nb.timer = setInterval(() => nbAuto(true), POLL_MS);
 }
 
 // ---------- rows ----------
@@ -137,7 +154,8 @@ function nbRow(a, now) {
   else if (tv.kind !== "none") clock.append(el("span", tv.kind === "scheduled" ? "nb-sched" : "", tv.kind === "scheduled" ? `Scheduled ${tv.scheduled}` : tv.predicted));
   // After a failed refresh only clock times are shown: a cached minute count would be wrong.
   eta.append(el("span", "nb-min", nb.failed ? "" : RideCore.etaText(tv.effectiveMs, now)), clock, el("span", "sr", tv.label));
-  b.append(badge(a.line, lineColors(lineObj || { type: a.type })), main, eta, el("span", "sr", "Opens the map and the Board button."));
+  const colors = lineColors(lineObj || { type: a.type }); b.style.setProperty("--line-c", "#" + colors[0]);
+  b.append(badge(a.line, colors), main, eta, el("span", "sr", "Opens the map and the Board button."));
   b.onclick = () => nbOpen(a);
   return b;
 }
@@ -146,7 +164,7 @@ function nbRows() {
   const now = Date.now() + nb.skew, shown = new Set(nbPage().filter((c) => !nb.off.has(c.id)).map((c) => c.id));
   const list = RideCore.sortArrivals(nb.arrivals.filter((a) => shown.has(a.stopId) && (RideCore.timeView(a, hhmm).effectiveMs ?? now) >= now - 60000), hhmm);
   const rows = list.map((a) => nbRow(a, now));
-  box.replaceChildren(...(rows.length || !nb.cands.length ? rows : [el("p", "empty", nb.at ? "Nothing arriving at the selected stops." : "")]));
+  box.replaceChildren(...(rows.length || !nb.at || nb.failed || !nb.cands.length ? rows : [el("p", "empty", "Nothing arriving at the selected stops.")]));
   if (had) (rows.find((r) => r.dataset.key === had.dataset.key) || rows[Math.min(idx, rows.length - 1)] || $("nb-title")).focus(); // never fall to the page body
 }
 
@@ -372,7 +390,7 @@ async function restoreRide() {
       rideSay("Ride restored. The timer counted on from boarding. GPS points from while the app was closed are missing.");
     } else rideSay("Ride restored. Confirm the stop, add a photo and save.");
   }
-  renderRideBar(); nbSetMode("form");
+  renderRideBar(); nbSetMode(rideSession ? "form" : "nearby");
   window.addEventListener("online", reconcileRides); reconcileRides();
 }
 function nbSetMode(m) {
@@ -380,11 +398,23 @@ function nbSetMode(m) {
   $("nearby").hidden = m !== "nearby"; $("form").hidden = m !== "form";
   document.querySelectorAll("#log-mode button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === m)));
   renderRideBar(); nbPoll();
+  if (m === "nearby") nbAuto();
 }
 document.querySelectorAll("#log-mode button").forEach((b) => (b.onclick = () => nbSetMode(b.dataset.mode)));
-$("nb-locate").onclick = nbFind;
-$("nb-more").onclick = () => { nb.offset += PAGE_STOPS; nbLoad(true); $("nb-stops").querySelector("button").focus(); };
-function nearbyView(view) { if (view !== "log") { clearInterval(nb.timer); nb.timer = null; } else nbPoll(); }
+$("nb-locate").onclick = () => { nb.paused = false; nbFind(false); }; // an explicit Refresh lifts the pause
+$("nb-more").onclick = async () => {
+  if (nb.busy) return; // same one-request guard as the timer and Refresh
+  nb.busy = true; nb.last = Date.now();
+  nb.offset = nb.offset + PAGE_STOPS >= nb.cands.length ? 0 : nb.offset + PAGE_STOPS;
+  try { await nbLoad(true); } finally { nb.busy = false; }
+};
+// Entering Log opens Nearby unless a ride or an edit needs the form; the first lookup runs here, never at app start.
+function nearbyView(view) {
+  if (view === "log" && (rideSession || editing) && nb.mode === "nearby") return nbSetMode("form");
+  nbPoll();
+  if (view === "log") nbAuto();
+}
+document.addEventListener("visibilitychange", () => nbAuto());
 
 // Match saved rides to the API once it is reachable. Only the ride's record changes; completion never does.
 // Only ride.api is written, onto the row as it is stored at that moment (photos, notes and track stay untouched bytes).

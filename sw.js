@@ -1,4 +1,4 @@
-const CACHE = "bkv-challenge-v19";
+const CACHE = "bkv-challenge-v20";
 const ASSETS = ["./", "index.html", "css/app.css", "js/ride-core.js", "js/minimap.js", "js/app.js", "js/nearby.js", "data/catalog.json", "data/stops.json", "data/timetable.json", "data/api.json", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", (e) => {

@@ -28,14 +28,15 @@
       <details id="ride-note-gps"><summary>Location and screen lock</summary><p class="sub">Location is saved on this device for this ride. GPS records while the app is open on screen; a locked phone or another app can leave gaps in the track. The ride timer keeps counting through gaps and outages.</p></details>
     </div>
     <div id="log-mode" class="seg" role="group" aria-label="Log mode">
-      <button type="button" data-mode="nearby" aria-pressed="false">Nearby</button>
-      <button type="button" data-mode="form" aria-pressed="true">Log form</button>
+      <button type="button" data-mode="nearby" aria-pressed="true">Nearby</button>
+      <button type="button" data-mode="form" aria-pressed="false">Log form</button>
     </div>
     <section id="nearby" aria-labelledby="nb-title" hidden>
       <h2 id="nb-title" tabindex="-1">Vehicles near you</h2>
-      <div class="row"><button type="button" id="nb-locate" class="primary">Find vehicles near me</button><button type="button" id="nb-more" hidden>Search 1 km</button></div>
+      <div class="row"><button type="button" id="nb-locate" class="primary">Refresh</button><button type="button" id="nb-more" hidden>Next stops</button></div>
       <p id="nb-status" class="sub" role="status" aria-live="polite"></p>
-      <div id="nb-stops" class="chips" role="group" aria-label="Boarding stops" hidden></div>
+      <details id="nb-filter" hidden><summary id="nb-stops-sum">Stops</summary>
+        <div id="nb-stops" class="nb-stops" role="group" aria-label="Boarding stops"></div></details>
       <div id="nb-list" class="nb-list"></div>
       <p id="nb-credit" class="sub" hidden>Data source: BKK Zrt., CC BY 4.0</p>
     </section>

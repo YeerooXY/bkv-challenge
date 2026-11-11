@@ -306,13 +306,17 @@ dialog.catch::backdrop{background:rgba(0,0,0,.6)}
 #ride-status{min-height:1.3em}#ride-status.err{color:var(--bad);font-weight:600}
 #log-mode{margin-bottom:.9rem}
 #nearby h2{margin-top:.4rem;font-size:1.05rem}#nearby h2:focus{outline:none}
-.nb-list{display:flex;flex-direction:column;gap:.7rem;margin-top:.8rem;padding:.7rem;border-radius:24px;
-  background:radial-gradient(circle at 12% 0%,color-mix(in srgb,var(--accent) 26%,transparent),transparent 55%),radial-gradient(circle at 92% 100%,color-mix(in srgb,#2f7df6 22%,transparent),transparent 50%)}
+.nb-stops{display:flex;flex-direction:column;gap:.4rem;margin-top:.4rem}
+.nb-stops button{width:100%;min-height:44px;padding:.55rem .8rem;border-radius:10px;text-align:left;font-weight:600;white-space:normal;overflow-wrap:anywhere}
+.nb-stops button[aria-pressed=true]{background:var(--accent);color:var(--accent-fg)}
+.nb-list{display:flex;flex-direction:column;gap:.5rem;margin-top:.8rem}
 .nb-list:empty{display:none}
-.nb-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:.2rem .8rem;align-items:start;width:100%;min-height:108px;padding:1rem;border-radius:var(--r);text-align:left;font-weight:500;color:var(--fg);
-  background:color-mix(in srgb,var(--card) 58%,transparent);border:1px solid color-mix(in srgb,var(--fg) 16%,transparent);box-shadow:var(--shadow);-webkit-backdrop-filter:blur(14px) saturate(1.4);backdrop-filter:blur(14px) saturate(1.4)}
+.nb-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:.2rem .7rem;align-items:start;width:100%;padding:.8rem;border-radius:11px;text-align:left;font-weight:500;color:var(--fg);
+  background:color-mix(in srgb,var(--card) 72%,transparent);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  border:1px solid color-mix(in srgb,var(--fg) 16%,transparent);border-left:4px solid var(--line-c,var(--accent));box-shadow:var(--shadow)}
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.nb-row{background:var(--card)}}
 @media (prefers-reduced-transparency:reduce){.nb-row{background:var(--card);-webkit-backdrop-filter:none;backdrop-filter:none}}
+#nb-filter{margin-top:.4rem}#nb-filter summary{display:flex;align-items:center;min-height:44px;cursor:pointer;font-weight:600}
 .nb-main{display:flex;flex-direction:column;gap:.35rem;min-width:0}
 .nb-head{font-size:1.08rem;line-height:1.25;overflow-wrap:anywhere}
 .nb-meta{display:flex;flex-wrap:wrap;align-items:center;gap:.3rem .6rem;font-size:.92rem}
@@ -322,7 +326,7 @@ dialog.catch::backdrop{background:rgba(0,0,0,.6)}
 .nb-tier{font-size:.8rem;font-weight:700;color:var(--fg)}
 .nb-eta{display:flex;flex-direction:column;align-items:flex-end;gap:.15rem;text-align:right}
 .nb-min{font-size:1.6rem;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
-.nb-time{font-size:.95rem;font-variant-numeric:tabular-nums;white-space:nowrap}
+.nb-time{font-size:.95rem;font-variant-numeric:tabular-nums}
 .nb-old{color:var(--bad);text-decoration:line-through}.nb-new{color:var(--bad);font-weight:800;margin-left:.4rem}
 .nb-sched{color:var(--muted)}
 .nb-map{margin:.4rem 0 .6rem}

@@ -1,0 +1,722 @@
+[
+  {
+    "profile": "pc",
+    "theme": "light",
+    "passed": true,
+    "bounds": [
+      {
+        "x": 416,
+        "y": 309.734375,
+        "w": 608,
+        "h": 80.15625,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(0, 158, 227)",
+        "background": "color(srgb 1 1 1 / 0.72)"
+      },
+      {
+        "x": 416,
+        "y": 397.890625,
+        "w": 608,
+        "h": 80.15625,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(255, 216, 0)",
+        "background": "color(srgb 1 1 1 / 0.72)"
+      },
+      {
+        "x": 416,
+        "y": 486.046875,
+        "w": 608,
+        "h": 80.15625,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(228, 31, 24)",
+        "background": "color(srgb 1 1 1 / 0.72)"
+      }
+    ],
+    "filters": [
+      {
+        "w": 608,
+        "y": 303.328125,
+        "overflow": false
+      },
+      {
+        "w": 608,
+        "y": 353.71875,
+        "overflow": false
+      },
+      {
+        "w": 608,
+        "y": 404.109375,
+        "overflow": false
+      },
+      {
+        "w": 608,
+        "y": 454.5,
+        "overflow": false
+      },
+      {
+        "w": 608,
+        "y": 524.859375,
+        "overflow": false
+      },
+      {
+        "w": 608,
+        "y": 595.21875,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "profile": "pc",
+    "theme": "dark",
+    "passed": true,
+    "bounds": [
+      {
+        "x": 416,
+        "y": 309.734375,
+        "w": 608,
+        "h": 80.15625,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(0, 158, 227)",
+        "background": "color(srgb 0.0784314 0.109804 0.105882 / 0.72)"
+      },
+      {
+        "x": 416,
+        "y": 397.890625,
+        "w": 608,
+        "h": 80.15625,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(255, 216, 0)",
+        "background": "color(srgb 0.0784314 0.109804 0.105882 / 0.72)"
+      },
+      {
+        "x": 416,
+        "y": 486.046875,
+        "w": 608,
+        "h": 80.15625,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(228, 31, 24)",
+        "background": "color(srgb 0.0784314 0.109804 0.105882 / 0.72)"
+      }
+    ],
+    "filters": [
+      {
+        "w": 608,
+        "y": 303.328125,
+        "overflow": false
+      },
+      {
+        "w": 608,
+        "y": 353.71875,
+        "overflow": false
+      },
+      {
+        "w": 608,
+        "y": 404.109375,
+        "overflow": false
+      },
+      {
+        "w": 608,
+        "y": 454.5,
+        "overflow": false
+      },
+      {
+        "w": 608,
+        "y": 524.859375,
+        "overflow": false
+      },
+      {
+        "w": 608,
+        "y": 595.21875,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "profile": "mac",
+    "theme": "light",
+    "passed": true,
+    "bounds": [
+      {
+        "x": 416,
+        "y": 309.71875,
+        "w": 608,
+        "h": 80.140625,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(0, 158, 227)",
+        "background": "color(srgb 1 1 1 / 0.72)"
+      },
+      {
+        "x": 416,
+        "y": 397.859375,
+        "w": 608,
+        "h": 80.140625,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(255, 216, 0)",
+        "background": "color(srgb 1 1 1 / 0.72)"
+      },
+      {
+        "x": 416,
+        "y": 486,
+        "w": 608,
+        "h": 80.140625,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(228, 31, 24)",
+        "background": "color(srgb 1 1 1 / 0.72)"
+      }
+    ],
+    "filters": [
+      {
+        "w": 608,
+        "y": 303.3125,
+        "overflow": false
+      },
+      {
+        "w": 608,
+        "y": 353.703125,
+        "overflow": false
+      },
+      {
+        "w": 608,
+        "y": 404.09375,
+        "overflow": false
+      },
+      {
+        "w": 608,
+        "y": 454.484375,
+        "overflow": false
+      },
+      {
+        "w": 608,
+        "y": 524.84375,
+        "overflow": false
+      },
+      {
+        "w": 608,
+        "y": 595.203125,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "profile": "mac",
+    "theme": "dark",
+    "passed": true,
+    "bounds": [
+      {
+        "x": 416,
+        "y": 309.71875,
+        "w": 608,
+        "h": 80.140625,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(0, 158, 227)",
+        "background": "color(srgb 0.078431 0.109804 0.105882 / 0.72)"
+      },
+      {
+        "x": 416,
+        "y": 397.859375,
+        "w": 608,
+        "h": 80.140625,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(255, 216, 0)",
+        "background": "color(srgb 0.078431 0.109804 0.105882 / 0.72)"
+      },
+      {
+        "x": 416,
+        "y": 486,
+        "w": 608,
+        "h": 80.140625,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(228, 31, 24)",
+        "background": "color(srgb 0.078431 0.109804 0.105882 / 0.72)"
+      }
+    ],
+    "filters": [
+      {
+        "w": 608,
+        "y": 303.3125,
+        "overflow": false
+      },
+      {
+        "w": 608,
+        "y": 353.703125,
+        "overflow": false
+      },
+      {
+        "w": 608,
+        "y": 404.09375,
+        "overflow": false
+      },
+      {
+        "w": 608,
+        "y": 454.484375,
+        "overflow": false
+      },
+      {
+        "w": 608,
+        "y": 524.84375,
+        "overflow": false
+      },
+      {
+        "w": 608,
+        "y": 595.203125,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "profile": "android",
+    "theme": "light",
+    "passed": true,
+    "bounds": [
+      {
+        "x": 16,
+        "y": 309.734375,
+        "w": 380,
+        "h": 98.109375,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(0, 158, 227)",
+        "background": "color(srgb 1 1 1 / 0.72)"
+      },
+      {
+        "x": 16,
+        "y": 415.84375,
+        "w": 380,
+        "h": 80.15625,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(255, 216, 0)",
+        "background": "color(srgb 1 1 1 / 0.72)"
+      },
+      {
+        "x": 16,
+        "y": 504,
+        "w": 380,
+        "h": 80.15625,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(228, 31, 24)",
+        "background": "color(srgb 1 1 1 / 0.72)"
+      }
+    ],
+    "filters": [
+      {
+        "w": 380,
+        "y": 303.328125,
+        "overflow": false
+      },
+      {
+        "w": 380,
+        "y": 353.71875,
+        "overflow": false
+      },
+      {
+        "w": 380,
+        "y": 424.078125,
+        "overflow": false
+      },
+      {
+        "w": 380,
+        "y": 494.4375,
+        "overflow": false
+      },
+      {
+        "w": 380,
+        "y": 564.796875,
+        "overflow": false
+      },
+      {
+        "w": 380,
+        "y": 635.15625,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "profile": "android",
+    "theme": "dark",
+    "passed": true,
+    "bounds": [
+      {
+        "x": 16,
+        "y": 309.734375,
+        "w": 380,
+        "h": 98.109375,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(0, 158, 227)",
+        "background": "color(srgb 0.0784314 0.109804 0.105882 / 0.72)"
+      },
+      {
+        "x": 16,
+        "y": 415.84375,
+        "w": 380,
+        "h": 80.15625,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(255, 216, 0)",
+        "background": "color(srgb 0.0784314 0.109804 0.105882 / 0.72)"
+      },
+      {
+        "x": 16,
+        "y": 504,
+        "w": 380,
+        "h": 80.15625,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(228, 31, 24)",
+        "background": "color(srgb 0.0784314 0.109804 0.105882 / 0.72)"
+      }
+    ],
+    "filters": [
+      {
+        "w": 380,
+        "y": 303.328125,
+        "overflow": false
+      },
+      {
+        "w": 380,
+        "y": 353.71875,
+        "overflow": false
+      },
+      {
+        "w": 380,
+        "y": 424.078125,
+        "overflow": false
+      },
+      {
+        "w": 380,
+        "y": 494.4375,
+        "overflow": false
+      },
+      {
+        "w": 380,
+        "y": 564.796875,
+        "overflow": false
+      },
+      {
+        "w": 380,
+        "y": 635.15625,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "profile": "iphone",
+    "theme": "light",
+    "passed": true,
+    "bounds": [
+      {
+        "x": 16,
+        "y": 309.71875,
+        "w": 358,
+        "h": 119.65625,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(0, 158, 227)",
+        "background": "color(srgb 1 1 1 / 0.72)"
+      },
+      {
+        "x": 16,
+        "y": 437.375,
+        "w": 358,
+        "h": 80.140625,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(255, 216, 0)",
+        "background": "color(srgb 1 1 1 / 0.72)"
+      },
+      {
+        "x": 16,
+        "y": 525.515625,
+        "w": 358,
+        "h": 80.140625,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(228, 31, 24)",
+        "background": "color(srgb 1 1 1 / 0.72)"
+      }
+    ],
+    "filters": [
+      {
+        "w": 358,
+        "y": 303.3125,
+        "overflow": false
+      },
+      {
+        "w": 358,
+        "y": 373.671875,
+        "overflow": false
+      },
+      {
+        "w": 358,
+        "y": 444.03125,
+        "overflow": false
+      },
+      {
+        "w": 358,
+        "y": 514.390625,
+        "overflow": false
+      },
+      {
+        "w": 358,
+        "y": 584.75,
+        "overflow": false
+      },
+      {
+        "w": 358,
+        "y": 678.296875,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "profile": "iphone",
+    "theme": "dark",
+    "passed": true,
+    "bounds": [
+      {
+        "x": 16,
+        "y": 309.71875,
+        "w": 358,
+        "h": 119.65625,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(0, 158, 227)",
+        "background": "color(srgb 0.078431 0.109804 0.105882 / 0.72)"
+      },
+      {
+        "x": 16,
+        "y": 437.375,
+        "w": 358,
+        "h": 80.140625,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(255, 216, 0)",
+        "background": "color(srgb 0.078431 0.109804 0.105882 / 0.72)"
+      },
+      {
+        "x": 16,
+        "y": 525.515625,
+        "w": 358,
+        "h": 80.140625,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(228, 31, 24)",
+        "background": "color(srgb 0.078431 0.109804 0.105882 / 0.72)"
+      }
+    ],
+    "filters": [
+      {
+        "w": 358,
+        "y": 303.3125,
+        "overflow": false
+      },
+      {
+        "w": 358,
+        "y": 373.671875,
+        "overflow": false
+      },
+      {
+        "w": 358,
+        "y": 444.03125,
+        "overflow": false
+      },
+      {
+        "w": 358,
+        "y": 514.390625,
+        "overflow": false
+      },
+      {
+        "w": 358,
+        "y": 584.75,
+        "overflow": false
+      },
+      {
+        "w": 358,
+        "y": 678.296875,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "profile": "narrow",
+    "theme": "light",
+    "passed": true,
+    "bounds": [
+      {
+        "x": 16,
+        "y": 309.734375,
+        "w": 288,
+        "h": 141.296875,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(0, 158, 227)",
+        "background": "color(srgb 1 1 1 / 0.72)"
+      },
+      {
+        "x": 16,
+        "y": 459.03125,
+        "w": 288,
+        "h": 98.109375,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(255, 216, 0)",
+        "background": "color(srgb 1 1 1 / 0.72)"
+      },
+      {
+        "x": 16,
+        "y": 565.140625,
+        "w": 288,
+        "h": 119.03125,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(228, 31, 24)",
+        "background": "color(srgb 1 1 1 / 0.72)"
+      }
+    ],
+    "filters": [
+      {
+        "w": 288,
+        "y": 303.328125,
+        "overflow": false
+      },
+      {
+        "w": 288,
+        "y": 373.6875,
+        "overflow": false
+      },
+      {
+        "w": 288,
+        "y": 444.046875,
+        "overflow": false
+      },
+      {
+        "w": 288,
+        "y": 514.40625,
+        "overflow": false
+      },
+      {
+        "w": 288,
+        "y": 607.953125,
+        "overflow": false
+      },
+      {
+        "w": 288,
+        "y": 701.5,
+        "overflow": false
+      }
+    ]
+  },
+  {
+    "profile": "narrow",
+    "theme": "dark",
+    "passed": true,
+    "bounds": [
+      {
+        "x": 16,
+        "y": 309.734375,
+        "w": 288,
+        "h": 141.296875,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(0, 158, 227)",
+        "background": "color(srgb 0.0784314 0.109804 0.105882 / 0.72)"
+      },
+      {
+        "x": 16,
+        "y": 459.03125,
+        "w": 288,
+        "h": 98.109375,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(255, 216, 0)",
+        "background": "color(srgb 0.0784314 0.109804 0.105882 / 0.72)"
+      },
+      {
+        "x": 16,
+        "y": 565.140625,
+        "w": 288,
+        "h": 119.03125,
+        "overflow": false,
+        "radius": 11,
+        "border": 4,
+        "color": "rgb(228, 31, 24)",
+        "background": "color(srgb 0.0784314 0.109804 0.105882 / 0.72)"
+      }
+    ],
+    "filters": [
+      {
+        "w": 288,
+        "y": 303.328125,
+        "overflow": false
+      },
+      {
+        "w": 288,
+        "y": 373.6875,
+        "overflow": false
+      },
+      {
+        "w": 288,
+        "y": 444.046875,
+        "overflow": false
+      },
+      {
+        "w": 288,
+        "y": 514.40625,
+        "overflow": false
+      },
+      {
+        "w": 288,
+        "y": 607.953125,
+        "overflow": false
+      },
+      {
+        "w": 288,
+        "y": 701.5,
+        "overflow": false
+      }
+    ]
+  }
+]
