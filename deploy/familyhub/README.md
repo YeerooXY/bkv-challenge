@@ -54,6 +54,8 @@ The Windows Tailscale node provides a separate Serve port 8445, proxying `127.0.
 
 The app's `data/api.json` points to the private HTTPS API. A phone needs Tailscale connected to the same tailnet. Windows, the VM and the tunnel must be running. The eventual dedicated Linux server should host its own Tailscale endpoint directly.
 
+Current installation: the VM service and key are installed and live arrivals pass inside Debian. Automatic approval review blocked the Windows connection command. `connect-windows.ps1` prepares that connection using the existing VM keys; it has been syntax-checked, not executed. The app's API address is still unchanged pending a successful HTTPS check. The SSH process started by this script does not automatically restart after Windows reboots; persistent tunnel management remains a follow-up after the connection is allowed and verified.
+
 ## Rollback
 
 Disable only the BKV Serve port with `tailscale serve --https=8445 off`, stop its dedicated Windows tunnel, and run `systemctl disable --now bkv-api` in the VM. Remove `/etc/systemd/system/bkv-api.service`, reload systemd, then remove the dedicated `/etc/bkv-challenge` and `/srv/familyhub/services/bkv-challenge` directories and the `bkv-api` account. Preserve every other FamilyHub service, route and data directory. Restore the previous app `apiBase` and refresh its service-worker cache when publishing rollback.
