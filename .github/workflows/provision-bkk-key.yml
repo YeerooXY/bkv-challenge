@@ -1,0 +1,56 @@
+name: Provision BKK key
+
+on:
+  workflow_dispatch:
+    inputs:
+      recipient_public_key:
+        description: RSA public key PEM (3072 bits or more). Not secret.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  encrypt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate and encrypt
+        env:
+          RECIPIENT_PUBLIC_KEY: ${{ inputs.recipient_public_key }}
+          BKK_API_KEY: ${{ secrets.BKK_API_KEY }}
+        run: |
+          set -eu
+          umask 077
+          pub="$RUNNER_TEMP/recipient.pub"
+          out="$RUNNER_TEMP/bkk-key.enc"
+          printf '%s\n' "$RECIPIENT_PUBLIC_KEY" > "$pub"
+
+          # RSA public key only; any other type fails here.
+          info=$(openssl rsa -pubin -in "$pub" -noout -text 2>/dev/null) \
+            || { echo "recipient_public_key is not an RSA public key PEM"; exit 1; }
+          bits=$(printf '%s\n' "$info" | sed -n 's/.*Public-Key: (\([0-9]*\) bit).*/\1/p')
+          [ -n "$bits" ] && [ "$bits" -ge 3072 ] \
+            || { echo "RSA key must be at least 3072 bits"; exit 1; }
+
+          [ -n "$BKK_API_KEY" ] || { echo "BKK_API_KEY secret is empty"; exit 1; }
+          case "$BKK_API_KEY" in
+            *[[:cntrl:]]*) echo "BKK_API_KEY contains line breaks or control characters"; exit 1 ;;
+          esac
+          # OAEP SHA-256 capacity: key bytes - 2*32 - 2
+          max=$(( bits / 8 - 66 ))
+          [ "$(printf '%s' "$BKK_API_KEY" | wc -c)" -le "$max" ] \
+            || { echo "BKK_API_KEY exceeds the RSA-OAEP capacity"; exit 1; }
+
+          printf '%s' "$BKK_API_KEY" | openssl pkeyutl -encrypt -pubin -inkey "$pub" \
+            -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 \
+            -pkeyopt rsa_mgf1_md:sha256 -out "$out"
+          echo "Encrypted to bkk-key.enc"
+
+      - name: Upload encrypted key
+        uses: actions/upload-artifact@v4
+        with:
+          name: bkk-key
+          path: ${{ runner.temp }}/bkk-key.enc
+          retention-days: 1
+          if-no-files-found: error
