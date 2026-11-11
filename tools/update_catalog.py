@@ -172,7 +172,7 @@ def main():
         wd = [sum(svc.get(g, {}).get("wd", [0] * 24)[h] for g in next((grp for grp in rarity.ALIAS_GROUPS if lid in grp), (lid,))) for h in range(24)]
         total = sum(wd) or 1
         night = sum(wd[h] for h in (23, 0, 1, 2, 3, 4)) / total
-        ends = [rarity.outside_budapest(*stops_json["stops"][d["s"][i]], place=place_of(*stops_json["stops"][d["s"][i]][1:])) for d in dirs for i in (0, -1)]
+        ends = [rarity.outside_budapest(*stops_json["stops"][d["s"][i]][:3], place=place_of(*stops_json["stops"][d["s"][i]][1:3])) for d in dirs for i in (0, -1)]
         line_tier[lid], line_why[lid] = rarity.line_rarity(wd, ends, night, max(len(d["s"]) for d in dirs))
     per_model = {}
     for info in mod.values():

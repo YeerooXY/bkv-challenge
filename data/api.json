@@ -1,0 +1,6 @@
+{
+  "apiBase": "",
+  "tiles": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+  "attribution": "© OpenStreetMap contributors",
+  "attributionUrl": "https://www.openstreetmap.org/copyright"
+}

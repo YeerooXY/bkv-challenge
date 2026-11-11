@@ -1,7 +1,8 @@
 """Build data/stops.json: the stop sequence of every line, both directions, from the BKK GTFS timetable.
 
-Format: {"stops": [[name, lat, lon], ...],
-         "lines": {"198": [{"to": "headsign", "s": [stop index, ...]}, ...]}}
+Format: {"stops": [[name, lat, lon, official stop id], ...],
+         "lines": {"198": [{"to": "headsign", "s": [stop index, ...], "x": [other stop index, ...]}, ...]}}
+"s" is the ordered longest trip. "x" lists platforms of that direction that trip skips (optional).
 Called by update_catalog.py when it downloads the timetable.
 """
 import csv
@@ -52,12 +53,14 @@ def build(z, routes):
             wanted[trip_id] = (key[0], key[1], head)
 
     seqs = defaultdict(list)
+    served = defaultdict(set)  # (line, direction) -> every stop id any trip of it calls at
     first = {}  # trip_id -> (stop_sequence, departure hour)
     for r in rows(z, "stop_times.txt"):
         tid = r["trip_id"]
         if tid in wanted:
             seqs[tid].append((int(r["stop_sequence"]), r["stop_id"]))
         if tid in trip_info:
+            served[(trip_info[tid][0], trip_info[tid][2])].add(r["stop_id"])
             seq = int(r["stop_sequence"])
             if tid not in first or seq < first[tid][0]:
                 first[tid] = (seq, int(r["departure_time"][:2]) % 24, int(r["departure_time"][3:5]))
@@ -82,17 +85,21 @@ def build(z, routes):
     stops_info = {s["stop_id"]: s for s in rows(z, "stops.txt")}
     index, stops = {}, []
     lines = defaultdict(list)
+    def stop_index(sid):
+        s = stops_info.get(sid)
+        if not s:
+            return None
+        if sid not in index:
+            index[sid] = len(stops)
+            # Columns 0-2 are what the app and tools have always read; the official stop id (a platform) is appended.
+            stops.append([s["stop_name"], round(float(s["stop_lat"]), 5), round(float(s["stop_lon"]), 5), sid])
+        return index[sid]
+
     for (line, direction), (head, ids) in sorted(longest.items()):
-        out = []
-        for sid in ids:
-            s = stops_info.get(sid)
-            if not s:
-                continue
-            if sid not in index:
-                index[sid] = len(stops)
-                stops.append([s["stop_name"], round(float(s["stop_lat"]), 5), round(float(s["stop_lon"]), 5)])
-            out.append(index[sid])
-        lines[line].append({"to": head, "s": out})
+        out = [i for i in map(stop_index, ids) if i is not None]
+        # Platforms the sampled longest trip skips (short turns, branches) of the same direction: nearby search only.
+        extra = [i for i in map(stop_index, sorted(served[(line, direction)] - set(ids))) if i is not None]
+        lines[line].append({"to": head, "s": out, **({"x": extra} if extra else {})})
     OUT.write_text(json.dumps({"stops": stops, "lines": lines}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     # Timetable, in the same direction order as stops.json: {line: [{day: {hour: [minutes]}} per direction]}
     timetable = {}

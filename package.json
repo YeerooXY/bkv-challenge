@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "description": "Android wrapper for the BKV Challenge web app",
   "scripts": {
-    "prepare-www": "python tools/prepare_www.py"
+    "prepare-www": "python tools/prepare_www.py",
+    "test": "node --test tests/ride-core.test.js && python -I -m unittest discover -s tests -p \"test_*.py\""
   },
   "dependencies": {
     "@capacitor/android": "latest",

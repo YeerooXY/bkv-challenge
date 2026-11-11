@@ -1,0 +1,48 @@
+name: Verify ride logging and live transit
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check ride and adapter behavior
+        run: |
+          node --test tests/ride-core.test.js
+          python -I -B -m unittest discover -s tests -p 'test_*.py'
+      - name: Check authenticated BKK arrivals without exposing the key
+        env:
+          BKK_API_KEY: ${{ secrets.BKK_API_KEY }}
+        run: |
+          python - <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          sys.path.insert(0, "backend")
+          from futar import ApiError, Transit
+          key = os.environ.get("BKK_API_KEY", "").strip()
+          if not key:
+              sys.exit("BKK_API_KEY is not configured")
+          data = json.loads(Path("data/stops.json").read_text(encoding="utf-8"))
+          stops = [s[3] for s in data["stops"] if "Deák Ferenc tér" in s[0] and len(s) > 3][:6]
+          if not stops:
+              sys.exit("No central boarding stops in bundled data")
+          try:
+              result = Transit(key).arrivals(stops)
+          except ApiError as error:
+              sys.exit(f"Live transit check failed: {error.reason}")
+          rows = result["arrivals"]
+          print(json.dumps({"state": result["state"], "stops": len(stops), "arrivals": len(rows), "plates": sum(bool(r["plate"]) for r in rows), "livePredictions": sum(r["timing"] == "realtime" for r in rows)}))
+          if not rows:
+              sys.exit("No arrivals returned; inspect live coverage before claiming it works")
+          PY

@@ -24,7 +24,7 @@ def terminals(stops_json):
     for dirs in stops_json["lines"].values():
         for d in dirs:
             for i in (0, -1):
-                n, lat, lon = stops_json["stops"][d["s"][i]]
+                n, lat, lon = stops_json["stops"][d["s"][i]][:3]
                 seen[key(lat, lon)] = (n, lat, lon)
     return seen
 

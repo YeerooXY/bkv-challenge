@@ -89,7 +89,11 @@ function rideCoversLine(e) {
 }
 const clearedLines = () => new Set(entries.filter(rideCoversLine).map((e) => normLine(e.line)));
 const partialLines = () => { const done = clearedLines(); return new Set(entries.map((e) => normLine(e.line)).filter((l) => !done.has(l))); };
-const clearedPlates = () => new Set(entries.map((e) => normPlate(e.plate)));
+// One rule for every view (Plates, Progress, Daily, catches, detail, Nearby): see RideCore.countsForPlate.
+const plateCounts = (e) => RideCore.countsForPlate(e, normPlate);
+const clearedPlates = () => new Set(entries.filter(plateCounts).map((e) => normPlate(e.plate)));
+let rideSession = null; // the one ride in progress or waiting to be saved (js/nearby.js)
+const sessionRecording = () => !!rideSession && rideSession.endedAtMs === null;
 
 // The installed Android app bundles a catalog, but the hourly updates live on the website:
 // fetch the newest one when online, remember it, and fall back to the saved or bundled copy.
@@ -209,6 +213,7 @@ function show(view, focusHeading = true) {
 }
 
 function render(view) {
+  nearbyView(view);
   if (view === "lines") renderMissing("lines");
   if (view === "plates") renderMissing("plates");
   if (view === "progress") renderProgress();
@@ -278,6 +283,11 @@ function collTile(kind, o, state) {
   const b = el("button", `tile ${kind === "lines" ? "line" : "plate"} ${state}${tier ? " r" + tier : ""}`); b.type = "button";
   const [bg, fg] = kind === "lines" ? lineColors(o) : TYPE_COLOR[typeOf(o.type)];
   b.style.setProperty("--tc", "#" + bg); b.style.setProperty("--tf", "#" + fg);
+  if (kind === "plates") {
+    const ph = modelPhotos[o.m], a = el("span", "tart");
+    if (ph) { const i = el("img"); i.src = "data/models/" + ph.file; i.alt = ""; i.loading = "lazy"; a.append(i); } else a.append(vehicleArt(o));
+    b.append(a);
+  }
   b.append(el("span", "num", kind === "lines" ? o.id : o.plate));
   if (kind === "plates") b.append(el("span", "mdl", o.m || TYPES[typeOf(o.type)]));
   if (kind === "plates" && o.plate.length > 12) b.classList.add("long");
@@ -352,9 +362,10 @@ function showDetail(kind, o) {
   };
   if (kind === "plate") {
     $("detail-title").textContent = o.plate;
-    const ride = entries.find((e) => normPlate(e.plate) === o.plate);
+    const ride = entries.find((e) => normPlate(e.plate) === o.plate && plateCounts(e));
+    const logged = !ride && entries.some((e) => normPlate(e.plate) === o.plate);
     if (modelPhotos[o.m]) { const im = el("img", "detail-photo"); im.src = "data/models/" + modelPhotos[o.m].file; im.alt = `Photo of a ${o.m}`; body.append(im); }
-    body.append(badge(TYPES[typeOf(o.type)], TYPE_COLOR[typeOf(o.type)]), el("span", "sub", o.m ? "  " + o.m : ""), el("p", "", ride ? `Ridden on ${new Date(ride.time).toLocaleDateString()} (line ${ride.line}).` : "Not ridden yet."));
+    body.append(badge(TYPES[typeOf(o.type)], TYPE_COLOR[typeOf(o.type)]), el("span", "sub", o.m ? "  " + o.m : ""), el("p", "", ride ? `Ridden on ${new Date(ride.time).toLocaleDateString()} (line ${ride.line}).` : logged ? "Logged, under 10 minutes. A timed ride of 10 minutes completes this plate." : "Not ridden yet."));
     const ls = el("div", "items"); (o.lines || []).forEach((id) => ls.append(lineBadge(id)));
     if (tierOf(o) > 0) body.append(tierBox());
     section("Seen on lines", (o.lines || []).length ? ls : el("p", "sub", "No line seen yet."));
@@ -488,8 +499,8 @@ function renderMissing(kind) {
     if (filters[kind] === "ALL" && t !== lastType && !(kind === "plates" && filters.sort === "idle")) {
       lastType = t; const n = items.filter((x) => typeOf(x.type) === t).length;
       const h = el("div", "tilehead"); h.append(el("h2", "", TYPES[t]), el("span", "sub", `${n}`)); out.push(h);
-      grid = el("div", "tiles"); out.push(grid);
-    } else if (!grid) { grid = el("div", "tiles"); out.push(grid); }
+      grid = el("div", "tiles" + (kind === "plates" ? " pcols" : "")); out.push(grid);
+    } else if (!grid) { grid = el("div", "tiles" + (kind === "plates" ? " pcols" : "")); out.push(grid); }
     grid.append(collTile(kind, i.o, stateOf(i)));
   });
   if (items.length > shown[kind]) {
@@ -565,7 +576,7 @@ function renderProgress() {
     const d = (days[e.time.slice(0, 10)] ||= { l: 0, p: 0 });
     const l = normLine(e.line), p = normPlate(e.plate);
     if (l && !seenL.has(l) && rideCoversLine(e)) { seenL.add(l); d.l++; }
-    if (p && !seenP.has(p)) { seenP.add(p); d.p++; }
+    if (p && !seenP.has(p) && plateCounts(e)) { seenP.add(p); d.p++; }
   });
   document.querySelector("#daily tbody").replaceChildren(...Object.keys(days).sort().reverse().map((d) => {
     const tr = el("tr");
@@ -597,6 +608,11 @@ function renderHistory() {
     const li = el("li");
     const t = el("div", "head"); t.append(lineBadge(e.line), el("strong", "", e.plate), el("span", "meta right", new Date(e.time).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })));
     li.append(t);
+    const r = e.ride;
+    if (r && r.boardedAtMs && r.endedAtMs) {
+      const sec = RideCore.rideSec(r.boardedAtMs, r.endedAtMs), ok = plateCounts(e);
+      li.append(el("div", "sub", `Timed ride ${Math.floor(sec / 60)} min ${sec % 60} s. ${ok ? "Counts for the plate." : r.plate !== normPlate(e.plate) ? "Plate changed after boarding, so it does not count." : "Under 10 minutes, so it does not count for the plate."}${r.api ? ` Trip data ${r.api.status === "matched" ? "matched" : r.api.status === "conflict" ? "differs from the saved ride" : "unconfirmed"}.` : ""}`));
+    } else if (r) li.append(el("div", "sub", "No ride timer. This log does not count for the plate."));
     if (e.stops.length) {
       const r = el("div", "route"), row = (cls, name) => { const d = el("div", "rt"); d.append(el("i", cls), el("span", "", name)); return d; };
       r.append(row("from", e.stops[0]));
@@ -630,13 +646,19 @@ const parseStops = (s) => (s.includes("\n") ? s.split(/\n+/) : s.split(/[,;]+/))
 function msg(text, err) { const m = $("msg"); m.textContent = text; m.className = err ? "err" : ""; }
 
 // Draft: everything typed or attached is kept, so a camera app or a restart never loses it.
-let draftTimer;
+let draftTimer, draftGen = 0; // draftGen: a save or reset bumps it so a delayed draft write cannot bring a finished form back
 function saveDraft() {
   clearTimeout(draftTimer);
+  const gen = draftGen;
   draftTimer = setTimeout(async () => {
     if (editing) return;
-    const fields = { line: $("line").value, plate: $("plate").value, when: $("when").value, stops: $("stops").value, notes: $("notes").value, dir: pick.dir, from: pick.from, to: pick.to, edited: pick.edited, track: trackPts };
-    try { await put("drafts", { key: "form", fields, photos: await Promise.all(photos.map((p) => packPhoto(p.blob))) }); } catch { /* draft is best effort */ }
+    // The direction and stop names go with the indices: the stop list can change between visits, and a restored index must be confirmed by name.
+    const d = pick.data && pick.data[pick.dir], nameAt = (i) => (d && d.s[i] !== undefined ? stopName(d.s[i]) : null);
+    const fields = { line: $("line").value, plate: $("plate").value, when: $("when").value, stops: $("stops").value, notes: $("notes").value, dir: pick.dir, from: pick.from, to: pick.to, edited: pick.edited, track: trackPts, dirTo: d ? d.to : null, fromName: nameAt(pick.from), toName: nameAt(pick.to) };
+    try {
+      const packed = await Promise.all(photos.map((p) => packPhoto(p.blob)));
+      if (gen === draftGen) await put("drafts", { key: "form", fields, photos: packed });
+    } catch { /* draft is best effort */ }
   }, 300);
 }
 async function restoreDraft() {
@@ -646,12 +668,20 @@ async function restoreDraft() {
   $("line").value = f.line || ""; $("plate").value = f.plate || ""; $("when").value = f.when || localNow();
   $("notes").value = f.notes || "";
   buildPicker();
+  let keepText = false;
   if (pick.data) {
-    pick.dir = Math.min(f.dir || 0, pick.data.length - 1); fillSelects();
-    pick.from = f.from || 0; pick.to = f.to ?? pick.data[pick.dir].s.length - 1;
-    $("from").value = String(pick.from); $("to").value = String(pick.to); renderDirs();
+    // Restore the direction and stops only when the saved names still sit at the saved places in the current data.
+    // Otherwise the defaults stay and the saved stop text is kept as typed, so nothing silently becomes a different stop.
+    const di = f.dirTo != null ? pick.data.findIndex((d) => d.to === f.dirTo) : -1, s = di >= 0 ? pick.data[di].s : [];
+    const at = (i, name) => (Number.isInteger(i) && i >= 0 && i < s.length && name != null && stopName(s[i]) === name ? i : -1);
+    const from = at(f.from, f.fromName), to = at(f.to, f.toName);
+    if (di >= 0 && from >= 0 && to >= 0) {
+      pick.dir = di; fillSelects(); pick.from = from; pick.to = to;
+      $("from").value = String(from); $("to").value = String(to); renderDirs();
+    } else keepText = !!f.stops;
   }
-  $("stops").value = f.stops || ""; pick.edited = !!f.edited; trackPts = f.track || []; updateTrackUi();
+  $("stops").value = f.stops || ""; pick.edited = keepText || !!f.edited; trackPts = f.track || []; updateTrackUi();
+  if (pick.data) updateRideNote();
   photos = (d.photos || []).map((p) => { const b = unpackPhoto(p); return { blob: b, url: URL.createObjectURL(b) }; });
   renderThumbs();
 }
@@ -806,7 +836,7 @@ function renderDirs() {
 function selectDir(i) {
   pick.dir = i; fillSelects();
   const n = nearest(i);
-  pick.from = n ? n.i : 0; pick.to = pick.data[i].s.length - 1; pick.edited = false;
+  pick.from = n ? n.i : 0; pick.to = sessionRecording() ? pick.from : pick.data[i].s.length - 1; pick.edited = false; // mid-ride the end stays open: Get off sets it
   $("from").value = String(pick.from); $("to").value = String(pick.to);
   renderDirs(); applyStops(); saveDraft();
 }
@@ -843,7 +873,7 @@ async function useLocation(which) {
     const n = pick.data.map((_, i) => nearest(i));
     if (pick.data.length === 2 && Math.abs(n[0].m - n[1].m) > 100) pick.dir = n[0].m < n[1].m ? 0 : 1;
     fillSelects();
-    pick.from = nearest(pick.dir).i; pick.to = pick.data[pick.dir].s.length - 1;
+    pick.from = nearest(pick.dir).i; pick.to = sessionRecording() ? pick.from : pick.data[pick.dir].s.length - 1;
   } else {
     pick.to = nearest(pick.dir).i;
   }
@@ -887,19 +917,25 @@ function updateTrackUi() {
 }
 function addPoint(lat, lon, ms = Date.now()) {
   trackPts.push([+lat.toFixed(5), +lon.toFixed(5), Math.round(ms / 1000)]);
-  trackPts.sort((a, b) => a[2] - b[2]); updateTrackUi(); saveDraft();
+  trackPts.sort((a, b) => a[2] - b[2]); updateTrackUi();
+  if (rideSession) saveSession(); else saveDraft(); // a fix must not rewrite the photo bytes of the form draft
 }
 function stopTrack() { if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; } }
-$("track-btn").onclick = () => {
-  if (watchId !== null) { stopTrack(); updateTrackUi(); return; }
+// One watch at a time. A lost signal leaves the watch running (it resumes by itself); only a refused permission ends it.
+function startTrack() {
+  if (watchId !== null) return;
   if (!navigator.geolocation) { $("track-status").textContent = "No GPS on this device."; return; }
   let last = 0;
   watchId = navigator.geolocation.watchPosition(
     (p) => { if (p.coords.accuracy > 100 || Date.now() - last < 10000) return; last = Date.now(); addPoint(p.coords.latitude, p.coords.longitude, p.timestamp); },
-    () => { stopTrack(); updateTrackUi(); $("track-status").textContent = "GPS unavailable. Check the location permission."; },
+    (err) => {
+      if (err.code === 1) { stopTrack(); updateTrackUi(); $("track-status").textContent = "GPS unavailable. Check the location permission."; }
+      else $("track-status").textContent = "No GPS signal right now. Recording continues when it returns." + (sessionRecording() ? " The ride timer keeps running." : "");
+    },
     { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
   updateTrackUi();
-};
+}
+$("track-btn").onclick = () => { if (watchId !== null) { stopTrack(); updateTrackUi(); } else startTrack(); };
 $("gpx-btn").onclick = () => $("gpx-file").click();
 $("gpx-file").addEventListener("change", async (ev) => {
   const f = ev.target.files[0]; if (!f) return;
@@ -924,6 +960,7 @@ function resetForm() {
 }
 
 function startEdit(e) {
+  if (rideSession) { show("log"); return msg("Finish or discard the current ride before editing a saved one.", true); }
   resetForm(); editing = e;
   $("line").value = e.line; $("plate").value = e.plate; $("when").value = toLocalInput(new Date(e.time));
   buildPicker();
@@ -934,31 +971,86 @@ function startEdit(e) {
   show("log");
 }
 
+// Timing record saved with the ride. Only a Board to Get off session earns plate credit; a manual log or an edited
+// plate gets a record with no timing, which never counts. Rides saved before this existed have no record and keep their credit.
+function rideRecord(plate) {
+  const s = rideSession;
+  if (s && s.endedAtMs !== null) {
+    return { sessionId: s.id, plate: s.plate || plate, boardedAtMs: s.boardedAtMs, endedAtMs: s.endedAtMs, sec: RideCore.rideSec(s.boardedAtMs, s.endedAtMs), source: s.source, trip: s.trip, api: s.trip ? { status: "unconfirmed", checkedAtMs: null, note: "" } : null };
+  }
+  if (editing) return editing.ride !== undefined ? editing.ride : normPlate(editing.plate) === plate ? undefined : { sessionId: null, plate, boardedAtMs: null, endedAtMs: null, sec: 0, source: "manual", trip: null, api: null };
+  return { sessionId: null, plate, boardedAtMs: null, endedAtMs: null, sec: 0, source: "manual", trip: null, api: null };
+}
+
+let saving = false;
 $("form").addEventListener("submit", async (ev) => {
   ev.preventDefault();
+  if (saving) return;
   const line = normLine($("line").value), plate = normPlate($("plate").value);
   if (!line) { msg("Enter the line.", true); return $("line").focus(); }
   if (!plate) { msg("Enter the license plate.", true); return $("plate").focus(); }
   if (!$("when").value) { msg("Enter the date and time.", true); return $("when").focus(); }
+  if (sessionRecording()) { msg("Tap Get off before saving this ride.", true); return $("ride-off").focus(); }
   if (!photos.length) { msg("Add at least one photo before saving.", true); return $("add-photo").focus(); }
+  saving = true; $("save").disabled = true;
+  try {
+    // Unknown line/plate: remember it so it counts and shows up in the search.
+    const newExtras = [];
+    if (!allLines().some((l) => l.id === line)) newExtras.push({ key: "line:" + line, kind: "line", value: line, type: "OTHER" });
+    if (!allPlates().some((p) => p.plate === plate)) newExtras.push({ key: "plate:" + plate, kind: "plate", value: plate, type: allLines().find((l) => l.id === line)?.type || "OTHER" });
 
-  // Unknown line/plate: remember it so it counts and shows up in the search.
-  if (!allLines().some((l) => l.id === line)) await put("extras", { key: "line:" + line, kind: "line", value: line, type: "OTHER" });
-  if (!allPlates().some((p) => p.plate === plate)) await put("extras", { key: "plate:" + plate, kind: "plate", value: plate, type: allLines().find((l) => l.id === line)?.type || "OTHER" });
-
-  const entry = {
-    line, plate, time: new Date($("when").value).toISOString(),
-    dir: pick.data ? pick.data[pick.dir].to : "",
-    track: decimate(trackPts), stops: parseStops($("stops").value), notes: $("notes").value.trim(), photos: await Promise.all(photos.map((p) => packPhoto(p.blob))),
-  };
-  if (editing) entry.id = editing.id;
-  const beforeL = clearedLines(), beforeP = clearedPlates();
-  try { await put("entries", entry); } catch { return msg("Could not save on this device (storage blocked or full).", true); }
-  await reload(); await clearDraft();
-  resetForm();
-  const caught = newCatches(beforeL, beforeP);
-  msg(caught.text, false);
-  if (caught.best >= 2) showCatch(caught); else $("line").focus();
+    const entry = {
+      line, plate, time: new Date($("when").value).toISOString(),
+      dir: pick.data ? pick.data[pick.dir].to : "",
+      track: decimate(trackPts), stops: parseStops($("stops").value), notes: $("notes").value.trim(), photos: await Promise.all(photos.map((p) => packPhoto(p.blob))),
+    };
+    const ride = rideRecord(plate);
+    if (ride) entry.ride = ride;
+    if (editing) entry.id = editing.id;
+    const beforeL = clearedLines(), beforeP = clearedPlates();
+    clearTimeout(draftTimer); draftGen++; // no delayed draft write may recreate this form
+    let gone = false;
+    try {
+      // One transaction: entry, new catalog extras and the drafts go together or not at all. A session is looked up here, not in
+      // memory: another tab may have saved it (then this updates that entry, never a second one) or discarded it (then nothing is written).
+      await new Promise((res, rej) => {
+        const t = db.transaction(["entries", "extras", "drafts"], "readwrite"), E = t.objectStore("entries"), D = t.objectStore("drafts");
+        const sid = !editing && ride && ride.sessionId;
+        const write = (id) => {
+          if (id !== undefined) entry.id = id;
+          newExtras.forEach((x) => t.objectStore("extras").put(x));
+          const p = E.put(entry);
+          if (sid) p.onsuccess = () => D.put({ key: SAVED + sid, entryId: p.result });
+          D.delete("form");
+          if (rideSession) D.delete("ride-session");
+        };
+        t.oncomplete = res; t.onerror = t.onabort = () => rej(t.error || new Error("aborted"));
+        if (!sid) return write();
+        const row = D.get("ride-session"), mark = D.get(SAVED + sid); let hit = null;
+        const decide = () => {
+          const existing = hit && hit.result ? mark.result.entryId : undefined;
+          if (existing === undefined && !(row.result && row.result.session && row.result.session.id === sid)) { gone = true; return; }
+          write(existing);
+        };
+        mark.onsuccess = () => { if (mark.result) { hit = E.get(mark.result.entryId); hit.onsuccess = decide; } else decide(); };
+      });
+    } catch {
+      saveDraft(); // the form, photos and ride stay as they are
+      return msg("Could not save on this device (storage blocked or full). Your ride and photos are still here. Free some space or export your rides, then save again.", true);
+    }
+    if (gone) { // the session row is missing and no entry exists for it: saved and deleted, or discarded, in another tab
+      saveDraft(); rideSession.saved = true; await reload(); rideDone();
+      return msg("This ride was already saved or discarded in another tab. The form is kept; check History before saving it again.", true);
+    }
+    const mismatch = ride && ride.plate !== plate;
+    if (rideSession) rideSession.saved = true; // a late GPS fix must not write the session row again
+    await reload();
+    rideDone();
+    resetForm();
+    const caught = newCatches(beforeL, beforeP);
+    msg(caught.text + (mismatch ? " The plate was changed after boarding, so this ride does not complete it." : ride && ride.boardedAtMs && !RideCore.qualifies(ride.boardedAtMs, ride.endedAtMs) ? " Under 10 minutes on board, so the plate is not completed." : ""), false);
+    if (caught.best >= 2) showCatch(caught); else $("line").focus();
+  } finally { saving = false; $("save").disabled = false; }
 });
 
 $("cancel-edit").onclick = () => { resetForm(); show("log"); $("line").focus(); };
@@ -976,15 +1068,26 @@ $("import-btn").onclick = () => $("import").click();
 $("import").addEventListener("change", async (ev) => {
   const f = ev.target.files[0]; if (!f) return;
   try {
+    // Validate everything first, then write everything in one transaction: a bad file changes nothing.
     const d = JSON.parse(await f.text());
-    for (const x of d.extras || []) await put("extras", x);
-    for (const e of d.entries || []) {
-      delete e.id;
-      e.photos = await Promise.all((e.photos || []).map((u) => fetch(u).then((r) => r.blob()).then(packPhoto)));
-      await put("entries", e);
+    if (!d || d.version !== 1 || (d.entries !== undefined && !Array.isArray(d.entries)) || (d.extras !== undefined && !Array.isArray(d.extras))) throw new Error("not a backup");
+    const list = (d.entries || []).map((e) => RideCore.cleanEntry(e, { normLine, normPlate })), ex = (d.extras || []).map((x) => RideCore.cleanExtra(x, Object.keys(TYPES)));
+    if (list.includes(null) || ex.includes(null)) throw new Error("invalid entry");
+    const same = (e) => `${e.time}|${normPlate(e.plate)}|${normLine(e.line)}`, have = new Set(entries.map(same));
+    const fresh = list.filter((e) => !have.has(same(e)) && !(e.ride && RideCore.entryIdForSession(entries, e.ride.sessionId) !== undefined));
+    const packed = [];
+    for (const e of fresh) {
+      const photos = await Promise.all(e.photos.map((u) => { const m = u.match(/^data:(image\/[a-z]+);base64,(.*)$/); return packPhoto(b64Blob(m[2], m[1])); })); // no fetch: only validated image data URLs are read
+      packed.push({ ...e, photos });
     }
-    await reload(); renderProgress(); alert(`Imported ${(d.entries || []).length} rides.`);
-  } catch { alert("That file is not a valid backup."); }
+    await new Promise((res, rej) => {
+      const t = db.transaction(["entries", "extras"], "readwrite");
+      ex.forEach((x) => t.objectStore("extras").put(x));
+      packed.forEach((e) => t.objectStore("entries").put(e));
+      t.oncomplete = res; t.onerror = t.onabort = () => rej(t.error || new Error("aborted"));
+    });
+    await reload(); renderProgress(); alert(`Imported ${packed.length} rides${list.length > packed.length ? `, skipped ${list.length - packed.length} already here` : ""}.`);
+  } catch { alert("That file is not a valid backup. Nothing was imported."); }
   ev.target.value = ""; $("export").focus();
 });
 
@@ -1028,6 +1131,7 @@ document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => { sh
 ["lines", "plates"].forEach((k) => $("q-" + k).addEventListener("input", () => { shown[k] = PAGE; renderMissing(k); }));
 
 (async function init() {
+  if (document.readyState === "loading") await new Promise((r) => document.addEventListener("DOMContentLoaded", r)); // js/nearby.js loads after this file
   db = await openDb();
   [catalog, stopData, timetable, modelPhotos] = await Promise.all([loadCatalog(), loadStops(), loadJson("data/timetable.json", {}), loadJson("data/model-photos.json", {})]);
   modelCount = {}; catalog.plates.forEach((p) => { if (p.m) modelCount[p.m] = (modelCount[p.m] || 0) + 1; });
@@ -1037,6 +1141,7 @@ document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => { sh
   await reload();
   resetForm();
   await restoreDraft();
+  await restoreRide();
   show("progress", false); // the app opens on Progress
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 })();

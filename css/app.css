@@ -287,3 +287,48 @@ dialog.catch::backdrop{background:rgba(0,0,0,.6)}
 .factbox p{margin:.3rem 0 .6rem;font-size:1.02rem}
 .facts{display:flex;flex-wrap:wrap;gap:.35rem}.factchip{background:var(--card);border-radius:999px;padding:.15rem .65rem;font-size:.82rem;color:var(--muted)}
 .modelpick summary{gap:.4rem}
+
+/* plate tiles: photo on top, two per row */
+.tiles.pcols{grid-template-columns:1fr 1fr}
+.tiles.pcols .tile{aspect-ratio:auto;justify-content:flex-start;padding:0 0 .55rem;gap:.2rem}
+.tile .tart{display:block;width:100%;aspect-ratio:16/10;background:var(--card2);margin-bottom:.25rem}
+.tile .tart img,.tile .tart svg{width:100%;height:100%;object-fit:cover;display:block}
+.tiles.pcols .tile.todo .tart img{opacity:.8}
+.tiles.pcols .tile::before{z-index:1}
+.tiles.pcols .tile .mark{top:14px;z-index:1}
+.tiles.pcols .tile .idle{top:14px;z-index:1}
+
+/* ---------- nearby arrivals and ride timer ---------- */
+.sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.ridebar{background:var(--card);border-radius:24px;padding:.2rem 1.1rem 1rem;margin-bottom:.9rem;box-shadow:var(--shadow)}
+.ridebar h2{margin:.9rem 0 .2rem;font-size:1.05rem}.ridebar h2:focus{outline:none}
+.ridebar .clock{font-size:2.2rem;font-weight:800;font-variant-numeric:tabular-nums;margin:.2rem 0;line-height:1.1}
+#ride-status{min-height:1.3em}#ride-status.err{color:var(--bad);font-weight:600}
+#log-mode{margin-bottom:.9rem}
+#nearby h2{margin-top:.4rem;font-size:1.05rem}#nearby h2:focus{outline:none}
+.nb-list{display:flex;flex-direction:column;gap:.7rem;margin-top:.8rem;padding:.7rem;border-radius:24px;
+  background:radial-gradient(circle at 12% 0%,color-mix(in srgb,var(--accent) 26%,transparent),transparent 55%),radial-gradient(circle at 92% 100%,color-mix(in srgb,#2f7df6 22%,transparent),transparent 50%)}
+.nb-list:empty{display:none}
+.nb-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:.2rem .8rem;align-items:start;width:100%;min-height:108px;padding:1rem;border-radius:var(--r);text-align:left;font-weight:500;color:var(--fg);
+  background:color-mix(in srgb,var(--card) 58%,transparent);border:1px solid color-mix(in srgb,var(--fg) 16%,transparent);box-shadow:var(--shadow);-webkit-backdrop-filter:blur(14px) saturate(1.4);backdrop-filter:blur(14px) saturate(1.4)}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.nb-row{background:var(--card)}}
+@media (prefers-reduced-transparency:reduce){.nb-row{background:var(--card);-webkit-backdrop-filter:none;backdrop-filter:none}}
+.nb-main{display:flex;flex-direction:column;gap:.35rem;min-width:0}
+.nb-head{font-size:1.08rem;line-height:1.25;overflow-wrap:anywhere}
+.nb-meta{display:flex;flex-wrap:wrap;align-items:center;gap:.3rem .6rem;font-size:.92rem}
+.nb-plate{font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.02em}.nb-plate.none{font-weight:500;color:var(--muted)}
+.nb-state{border-radius:999px;padding:.1rem .6rem;font-size:.8rem;font-weight:700;background:var(--accent);color:var(--accent-fg)}
+.nb-state.done{background:var(--card2);color:var(--muted)}
+.nb-tier{font-size:.8rem;font-weight:700;color:var(--fg)}
+.nb-eta{display:flex;flex-direction:column;align-items:flex-end;gap:.15rem;text-align:right}
+.nb-min{font-size:1.6rem;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+.nb-time{font-size:.95rem;font-variant-numeric:tabular-nums;white-space:nowrap}
+.nb-old{color:var(--bad);text-decoration:line-through}.nb-new{color:var(--bad);font-weight:800;margin-left:.4rem}
+.nb-sched{color:var(--muted)}
+.nb-map{margin:.4rem 0 .6rem}
+.mm-view{position:relative;overflow:hidden;border-radius:14px;background:var(--card2)}
+.mm-tile{position:absolute;width:256px;height:256px;max-width:none;user-select:none}
+.mm-pin{position:absolute;display:flex;align-items:center;justify-content:center;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.45);color:#fff;font:700 .78rem/1 system-ui,sans-serif}
+.mm-pin.vehicle{background:#c9150f}.mm-pin.stop{background:#0f766e;border-radius:6px}.mm-pin.me{background:#1d5fd1}
+.ridebar details{margin-top:.5rem}.ridebar summary{display:flex;align-items:center;min-height:44px;cursor:pointer}
+.mm-zoom{margin-top:.5rem}.mm-zoom button{min-width:48px;padding:.4rem .9rem}

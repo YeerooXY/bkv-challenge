@@ -1,0 +1,21 @@
+const assert=require('node:assert/strict');const fs=require('fs');
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const output=require('path').resolve(__dirname, '../../docs/verification/nearby-lead/reconcile-results.json');
+fs.mkdirSync(require('path').dirname(output),{recursive:true});
+const result=[];
+(async()=>{const browser=await chromium.launch({headless:true});try{
+ const context=await browser.newContext({serviceWorkers:'block'});const page=await context.newPage();
+ let release,received;const waiting=new Promise(r=>received=r);const gate=new Promise(r=>release=r);
+ const now=Date.now(),boarded=now-600000;
+ await page.route('**/v1/trip?**',async route=>{received();await gate;await route.fulfill({json:{schemaVersion:1,serverNowMs:Date.now(),tripId:'BKK_TEST',serviceDate:'20261111',vehicle:{plate:'NCA427'},stopTimes:[{stopId:'BKK_F1',scheduledAtMs:boarded,predictedAtMs:boarded}]}})});
+ await page.goto('http://127.0.0.1:8000',{waitUntil:'networkidle'});await page.waitForFunction(()=>document.querySelector('#ride-info').textContent);
+ await page.evaluate(async({now,boarded})=>{const photo=await packPhoto(new Blob([Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jwXcAAAAASUVORK5CYII='),c=>c.charCodeAt(0))],{type:'image/png'}));await put('entries',{line:'7',plate:'NCA427',time:new Date(boarded).toISOString(),dir:'',stops:[],notes:'original note',track:[],photos:[photo],ride:{sessionId:'review-fixture',plate:'NCA427',boardedAtMs:boarded,endedAtMs:now,source:'nearby',trip:{tripId:'BKK_TEST',serviceDate:'20261111',stopId:'BKK_F1'},api:{status:'unconfirmed',checkedAtMs:null}}});},{now,boarded});
+ await page.reload({waitUntil:'domcontentloaded'});await waiting;
+ await page.locator('[data-view=history]').click();await page.getByRole('button',{name:'Edit',exact:true}).click();await page.locator('#notes').fill('edited while API request pending');await page.locator('#save').click();await page.waitForFunction(()=>entries[0].notes==='edited while API request pending');
+ release();await page.waitForFunction(()=>entries[0].ride.api?.status==='matched');
+ assert.equal(await page.evaluate(()=>entries[0].notes),'edited while API request pending');assert.equal(await page.evaluate(()=>entries[0].photos.length),1);result.push({check:'API reconciliation preserves an edit saved during the request and retains photo',passed:true});await context.close();
+ const swContext=await browser.newContext();const swPage=await swContext.newPage();await swPage.goto('http://127.0.0.1:8000',{waitUntil:'networkidle'});await swPage.evaluate(()=>navigator.serviceWorker.ready);await swPage.reload({waitUntil:'networkidle'});await swPage.waitForFunction(()=>navigator.serviceWorker.controller);
+ const caches=await swPage.evaluate(()=>window.caches.keys());assert(caches.includes('bkv-challenge-v19'));
+ await swContext.setOffline(true);await swPage.reload({waitUntil:'domcontentloaded'});await swPage.waitForFunction(()=>document.querySelector('#ride-info').textContent);assert.equal(await swPage.title(),'BKV Challenge');
+ const api=await swPage.evaluate(async()=>{try{const r=await fetch('/v1/health');return {ok:true,type:r.headers.get('content-type')}}catch{return {ok:false}}});assert.equal(api.ok,false);result.push({check:'v19 service worker loads app offline and never replaces API failure with cached HTML',passed:true});await swContext.close();
+}catch(e){result.push({passed:false,error:e.stack});console.error(e.stack);process.exitCode=1;}finally{fs.writeFileSync(output,JSON.stringify(result,null,2));await browser.close();console.log(JSON.stringify(result));}})();
