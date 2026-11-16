@@ -14,6 +14,9 @@ const normPlate = (s) => s.replace(/\s+/g, "").toUpperCase();
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 const lineColors = (l) => (l && l.color ? [l.color, l.text || "FFFFFF"] : TYPE_COLOR[typeOf(l && l.type)]);
 function badge(text, [bg, fg], cls = "") {
+  const luminance = hex => { const rgb=hex.match(/../g).map(v=>parseInt(v,16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4); return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722; };
+  const light=luminance(bg), ink=luminance(fg);
+  if ((Math.max(light,ink)+.05)/(Math.min(light,ink)+.05)<4.5) fg=light>.179?'000000':'FFFFFF';
   const s = el("span", "badge " + cls, text); s.style.background = "#" + bg; s.style.color = "#" + fg; return s;
 }
 const lineBadge = (id) => badge(id, lineColors(allLines().find((l) => l.id === id)));
@@ -352,7 +355,10 @@ function timetableSection(id) {
 function showDetail(kind, o) {
   const body = $("detail-body"); body.replaceChildren();
   const hours = (o.h || []).length === 24 ? o.h : null, seen = hours ? hours.reduce((a, b) => a + b, 0) : 0;
-  const section = (title, node) => { body.append(el("h3", "", title), node); };
+  const section = (title, node) => {
+    if (["Directions","Timetable","Seen on lines","When it is usually seen","Seen so far"].includes(title)) { const d=el("details","detail-section"), sum=el("summary","",title);d.append(sum,node);body.append(d); }
+    else body.append(el("h3", "", title), node);
+  };
   const tierBox = () => {
     const t = tierOf(o), box = el("div", `tierbox r${t}`);
     box.append(el("strong", "", TIER_NAMES[t]));
@@ -387,7 +393,7 @@ function showDetail(kind, o) {
     if (o.fc) {
       const f = el("div", "factbox"); f.append(el("p", "", o.fc));
       const st = el("div", "facts"); [...(o.ns ? [`${o.ns} stops`, `${o.km} km`, `${o.tp} trips on a weekday`] : []), ...(o.tr || [])].forEach((t) => st.append(el("span", "factchip", t)));
-      f.append(st); body.append(f);
+      f.append(st); const info=el("details","detail-section");info.append(el("summary","","Line information"),f);body.append(info);
     }
     const dirs = stopData.lines[o.id] || [], ul = el("ul", "plain");
     dirs.forEach((d) => ul.append(el("li", "", `To ${d.to}: ${d.s.length} stops`)));
@@ -443,6 +449,11 @@ function fillModels() {
 
 function renderMissing(kind) {
   renderChips(kind);
+  const panel=$("q-"+kind).parentElement.querySelector(".filter-panel");
+  if (panel) {
+    const active=[filters[kind]!=="ALL"?TYPES[filters[kind]]:"",filters.status[kind]!=="all"?(filters.status[kind]==="done"?"Done":"To ride"):"",filters.rarity[kind]>=0?TIER_NAMES[filters.rarity[kind]]:"",kind==="plates"?filters.model:""] .filter(Boolean);
+    panel.querySelector("summary").textContent=active.length?`Filters: ${active.join(", ")}`:"Filters and sort";
+  }
   if (kind === "plates") fillModels();
   const q = $("q-" + kind).value.trim().toUpperCase().replace(/\s+/g, "");
   const done = kind === "lines" ? clearedLines() : clearedPlates(), part = kind === "lines" ? partialLines() : new Set();
@@ -459,7 +470,7 @@ function renderMissing(kind) {
   const base = pre.filter((i) => filters.rarity[kind] === -1 || tierOf(i.o) === filters.rarity[kind]);
   const stateOf = (i) => (done.has(i.k) ? "done" : part.has(i.k) ? "partial" : "todo");
   const st = filters.status[kind];
-  const items = base.filter((i) => st === "all" || (st === "done" ? stateOf(i) === "done" : stateOf(i) !== "done")).sort((a, b) => (kind === "plates" && filters.sort === "idle" ? idleDays(b.o) - idleDays(a.o) || byName(a.k, b.k) : byName(a.k, b.k)));
+  const items = base.filter((i) => st === "all" || (st === "done" ? stateOf(i) === "done" : stateOf(i) !== "done")).sort((a, b) => ((filters[kind] === "ALL" && !(kind === "plates" && filters.sort === "idle") ? Object.keys(TYPE_COLOR).indexOf(typeOf(a.type))-Object.keys(TYPE_COLOR).indexOf(typeOf(b.type)) : 0) || (kind === "plates" && filters.sort === "idle" ? idleDays(b.o) - idleDays(a.o) || byName(a.k, b.k) : byName(a.k, b.k))));
   $("sum-" + kind).textContent = `${base.filter((i) => stateOf(i) === "done").length} of ${base.length} collected` + (kind === "lines" ? ". A line counts after you ride it end to end." : ".");
   const host = $("list-" + kind);
   if (!items.length) { host.replaceChildren(el("p", "empty", q ? "No catalog matches these filters." : st === "done" ? "Nothing collected here yet." : "Nothing left here.")); return; }
@@ -578,22 +589,23 @@ function renderHistory() {
     const li = el("li");
     const t = el("div", "head"); t.append(lineBadge(e.line), el("strong", "", e.plate), el("span", "meta right", new Date(e.time).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })));
     li.append(t);
+    const detail=el("details","history-details"), summary=el("summary","","Ride details");detail.append(summary);
     const r = e.ride;
     if (r && r.boardedAtMs && r.endedAtMs) {
       const sec = RideCore.rideSec(r.boardedAtMs, r.endedAtMs), ok = plateCounts(e);
-      li.append(el("div", "sub", `Timed ride ${Math.floor(sec / 60)} min ${sec % 60} s. ${ok ? "Counts for the plate." : r.plate !== normPlate(e.plate) ? "Plate changed after boarding, so it does not count." : "Under 10 minutes, so it does not count for the plate."}${r.api ? ` Trip data ${r.api.status === "matched" ? "matched" : r.api.status === "conflict" ? "differs from the saved ride" : "unconfirmed"}.` : ""}`));
-    } else if (r) li.append(el("div", "sub", "No ride timer. This log does not count for the plate."));
+      detail.append(el("div", "sub", `Timed ride ${Math.floor(sec / 60)} min ${sec % 60} s. ${ok ? "Counts for the plate." : r.plate !== normPlate(e.plate) ? "Plate changed after boarding, so it does not count." : "Completion requirements not met."}${r.api ? ` Trip data ${r.api.status === "matched" ? "matched" : r.api.status === "conflict" ? "differs from the saved ride" : "unconfirmed"}.` : ""}`));
+    } else if (r) detail.append(el("div", "sub", "No ride timer. This log does not count for the plate."));
     if (e.stops.length) {
       const r = el("div", "route"), row = (cls, name) => { const d = el("div", "rt"); d.append(el("i", cls), el("span", "", name)); return d; };
       r.append(row("from", e.stops[0]));
       if (e.stops.length > 1) r.append(row("to", e.stops[e.stops.length - 1]));
-      li.append(r);
+      detail.append(r);
     }
-    if (e.notes) li.append(el("div", "note", e.notes));
-    if (e.track && e.track.length >= 2) li.append(trackView(e.track));
+    if (e.notes) detail.append(el("div", "note", e.notes));
+    if (e.track && e.track.length >= 2) detail.append(trackView(e.track));
     const pics = el("div");
     e.photos.forEach((b) => { const i = el("img"); i.src = URL.createObjectURL(b); i.alt = `Photo of ${e.plate}`; i.loading = "lazy"; pics.append(i); });
-    li.append(pics);
+    detail.append(pics);
     const a = el("div", "actions");
     const eb = el("button", "", "Edit"), db_ = el("button", "", "Delete");
     eb.type = db_.type = "button";
@@ -603,7 +615,7 @@ function renderHistory() {
       await del("entries", e.id); await reload(); renderHistory();
       ($("history").querySelector("button") || $("h-history")).focus();
     };
-    a.append(eb, db_); li.append(a); return li;
+    a.append(eb, db_); detail.append(a); li.append(detail); return li;
   }));
 }
 
@@ -670,10 +682,11 @@ function renderThumbs() {
     };
     li.append(img, b); return li;
   });
-  const add = el("li"); const ab = el("button", "add", "+"); ab.id = "add-photo"; ab.type = "button"; ab.setAttribute("aria-label", "Add photo");
+  const add = el("li"); const ab = el("button", "add", "Add photo"); ab.id = "add-photo"; ab.type = "button"; ab.setAttribute("aria-label", "Add photo");
   ab.onclick = openSheet;
   add.append(ab);
   $("thumbs").replaceChildren(...tiles, add);
+  $("photos-label").textContent = photos.length ? `Photos (${photos.length})` : "Photo required";
 }
 
 const native = () => !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform() && Capacitor.isPluginAvailable && Capacitor.isPluginAvailable("Camera"));
@@ -926,7 +939,7 @@ function resetForm() {
   photos.forEach((p) => URL.revokeObjectURL(p.url)); photos = []; renderThumbs();
   pick.data = null; buildPicker();
   $("when").value = localNow();
-  $("cancel-edit").hidden = true; $("save").textContent = "Save ride"; $("h-log").textContent = "Log a ride";
+  $("cancel-edit").hidden = true; $("save").textContent = "Save ride"; $("h-log").textContent = "Ride";
 }
 
 function startEdit(e) {
@@ -938,7 +951,7 @@ function startEdit(e) {
   $("stops").value = e.stops.join("\n"); pick.edited = true; $("notes").value = e.notes; trackPts = (e.track || []).slice(); updateTrackUi();
   photos = e.photos.map((b) => ({ blob: b, url: URL.createObjectURL(b) })); renderThumbs();
   $("cancel-edit").hidden = false; $("save").textContent = "Update ride"; $("h-log").textContent = "Edit ride";
-  show("log");
+  nbSetMode("form"); show("log");
 }
 
 // Timing record saved with the ride. Only a Board to Get off session earns plate credit; a manual log or an edited
@@ -946,9 +959,12 @@ function startEdit(e) {
 function rideRecord(plate) {
   const s = rideSession;
   if (s && s.endedAtMs !== null) {
-    return { sessionId: s.id, plate: s.plate || plate, boardedAtMs: s.boardedAtMs, endedAtMs: s.endedAtMs, sec: RideCore.rideSec(s.boardedAtMs, s.endedAtMs), source: s.source, trip: s.trip, api: s.trip ? { status: "unconfirmed", checkedAtMs: null, note: "" } : null };
+    return { ...(s.ruleVersion===2 ? {ruleVersion:2,mode:s.mode,legs:pick.data && !pick.edited ? Math.max(0,pick.to-pick.from) : 0,stopConfirmed:!!pick.data && !pick.edited} : {}), sessionId: s.id, plate: s.plate || plate, boardedAtMs: s.boardedAtMs, endedAtMs: s.endedAtMs, sec: RideCore.rideSec(s.boardedAtMs, s.endedAtMs), source: s.source, trip: s.trip, api: s.trip ? { status: "unconfirmed", checkedAtMs: null, note: "" } : null };
   }
-  if (editing) return editing.ride !== undefined ? editing.ride : normPlate(editing.plate) === plate ? undefined : { sessionId: null, plate, boardedAtMs: null, endedAtMs: null, sec: 0, source: "manual", trip: null, api: null };
+  if (editing) {
+    if (editing.ride?.ruleVersion===2 && $("stops").value !== editing.stops.join("\n")) return {...editing.ride,legs:pick.data&&!pick.edited?Math.max(0,pick.to-pick.from):0,stopConfirmed:!!pick.data&&!pick.edited};
+    return editing.ride !== undefined ? editing.ride : normPlate(editing.plate) === plate ? undefined : { sessionId: null, plate, boardedAtMs: null, endedAtMs: null, sec: 0, source: "manual", trip: null, api: null };
+  }
   return { sessionId: null, plate, boardedAtMs: null, endedAtMs: null, sec: 0, source: "manual", trip: null, api: null };
 }
 
@@ -956,6 +972,7 @@ let saving = false;
 $("form").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   if (saving) return;
+  if (!rideSession && !editing) return;
   const line = normLine($("line").value), plate = normPlate($("plate").value);
   if (!line) { msg("Enter the line.", true); return $("line").focus(); }
   if (!plate) { msg("Enter the license plate.", true); return $("plate").focus(); }
@@ -977,7 +994,6 @@ $("form").addEventListener("submit", async (ev) => {
     const ride = rideRecord(plate);
     if (ride) entry.ride = ride;
     if (editing) entry.id = editing.id;
-    const beforeL = clearedLines(), beforeP = clearedPlates();
     clearTimeout(draftTimer); draftGen++; // no delayed draft write may recreate this form
     let gone = false;
     try {
@@ -1017,13 +1033,13 @@ $("form").addEventListener("submit", async (ev) => {
     await reload();
     rideDone();
     resetForm();
-    const caught = newCatches(beforeL, beforeP);
-    msg(caught.text + (mismatch ? " The plate was changed after boarding, so this ride does not complete it." : ride && ride.boardedAtMs && !RideCore.qualifies(ride.boardedAtMs, ride.endedAtMs) ? " Under 10 minutes on board, so the plate is not completed." : ""), false);
-    if (caught.best >= 2) showCatch(caught); else $("line").focus();
+    $("saved-result").hidden = false; $("nearby").hidden = true; $("form").hidden = true;
+    $("saved-info").textContent = `${plate}  Line ${line}. ${ride && RideCore.qualifiesRide(ride) && !mismatch ? "Plate completed." : "Ride recorded."}`;
+    $("saved-title").focus();
   } finally { saving = false; $("save").disabled = false; }
 });
 
-$("cancel-edit").onclick = () => { resetForm(); show("log"); $("line").focus(); };
+$("cancel-edit").onclick = () => { resetForm(); nbSetMode("nearby"); show("log"); $("nb-title").focus(); };
 
 // ---------- backup ----------
 const toDataUrl = (b) => new Promise((r) => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); });
@@ -1113,6 +1129,6 @@ document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => { sh
   resetForm();
   await restoreDraft();
   await restoreRide();
-  show("progress", false); // the app opens on Progress
+  show("log", false); // start with nearby vehicles
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 })();

@@ -16,7 +16,15 @@
   function countsForPlate(entry, normPlate) {
     const r = entry.ride;
     if (!r) return true;
-    return r.plate === normPlate(entry.plate) && qualifies(r.boardedAtMs, r.endedAtMs);
+    return r.plate === normPlate(entry.plate) && qualifiesRide(r);
+  }
+  function qualifiesRide(r) {
+    if (!r) return false;
+    if (r.ruleVersion !== 2) return qualifies(r.boardedAtMs, r.endedAtMs);
+    if (!Number.isInteger(r.legs) || r.legs < 0 || r.legs > 500) return false;
+    if (!Number.isFinite(r.boardedAtMs) || !Number.isFinite(r.endedAtMs) || r.endedAtMs <= r.boardedAtMs) return false;
+    if (r.mode === "SUBWAY") return r.stopConfirmed === true && r.legs >= 1;
+    return qualifies(r.boardedAtMs, r.endedAtMs) && (r.mode !== "BUS" || (r.stopConfirmed === true && r.legs >= 3));
   }
 
   // Saving the same session twice must update one entry, not add a second.
@@ -111,7 +119,9 @@
       if (typeof r.api !== "object" || !["unconfirmed", "matched", "conflict"].includes(r.api.status) || !numOrNull(r.api.checkedAtMs)) return null;
       api = { status: r.api.status, checkedAtMs: nullable(r.api.checkedAtMs), note: str(r.api.note, 200) ? r.api.note : "" };
     }
-    return { sessionId: nullable(r.sessionId), plate: r.plate, boardedAtMs: nullable(r.boardedAtMs), endedAtMs: nullable(r.endedAtMs), source: r.source === "nearby" ? "nearby" : "manual", trip, api };
+    if (r.ruleVersion !== undefined && (r.ruleVersion !== 2 || !["BUS","TRAM","TROLLEYBUS","HEV","SUBWAY","FERRY","OTHER"].includes(r.mode) || !Number.isInteger(r.legs) || r.legs < 0 || r.legs > 500 || typeof r.stopConfirmed !== "boolean")) return null;
+    return { sessionId: nullable(r.sessionId), plate: r.plate, boardedAtMs: nullable(r.boardedAtMs), endedAtMs: nullable(r.endedAtMs), source: r.source === "nearby" ? "nearby" : "manual", trip, api,
+      ...(r.ruleVersion === 2 ? {ruleVersion:2, mode:r.mode, legs:r.legs, stopConfirmed:r.stopConfirmed} : {}) };
   }
   // Returns a clean entry (photos still data URLs) or null. Never touches the input.
   function cleanEntry(e, { normLine, normPlate }) {
@@ -141,5 +151,5 @@
     return { key: x.kind + ":" + x.value, kind: x.kind, value: x.value, type: types.includes(x.type) ? x.type : "OTHER" };
   }
 
-  return { MIN_RIDE_MS, rideMs, rideSec, qualifies, countsForPlate, entryIdForSession, suggestStop, judgeTrip, judgeArrivals, sameStop, timeView, etaText, sortArrivals, uniqueVehicles, cleanEntry, cleanExtra, IMG };
+  return { MIN_RIDE_MS, rideMs, rideSec, qualifies, qualifiesRide, countsForPlate, entryIdForSession, suggestStop, judgeTrip, judgeArrivals, sameStop, timeView, etaText, sortArrivals, uniqueVehicles, cleanEntry, cleanExtra, IMG };
 });

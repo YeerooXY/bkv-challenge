@@ -20,13 +20,13 @@ In Lines, open a line (for example 225) and press **Find live vehicles** in its 
 
 Nearby also asks BKK for vehicles linked through their duty. If the linked vehicle is still on another trip, its card says **Likely [plate]**. Open the card to board with a blank plate, or explicitly confirm the suggested plate and board after checking the vehicle. Likely plates have no New/Completed badge or vehicle-position marker. Stale, undated and conflicting-date associations remain unknown. Historical ride matching does not request duty-linked vehicles.
 
-- **Log, Nearby**: Find vehicles near me lists the vehicles arriving at the platforms around you, soonest first, with line, headsign, plate, New or Completed, and the time. When a live prediction differs from the timetable, the scheduled time is struck through in red and the predicted time follows it in red. Without a prediction the timetable time is shown as Scheduled. A vehicle without a plate reads Plate unavailable and is never New.
-- **Tap a row** for the map and details. **Board this vehicle** fills the Log form and starts the ride timer and GPS. **Board now** on the Log screen does the same for a vehicle you pick by hand.
-- **Get off** stops GPS, saves the end time and suggests the stop you got off at from your latest GPS point. You confirm or change it. Add a photo and save as usual.
-- **The only qualification rule**: at least 600 seconds between Board and Get off, on one plate. 599 does not count. Rides are not added together. A shorter ride still saves. GPS gaps, a locked or hidden screen and internet outages never pause or reduce the timer.
-- The timer and GPS points are saved on the device as they happen, so a reload or crash restores the ride. GPS records only while the app is open on screen. After a lock or app switch the track can have gaps; they are not filled in.
-- When the internet is back, a saved ride that is under 24 hours old is matched to the API once an hour. A Nearby ride is matched by trip, date, plate and boarding time. A ride boarded by hand with **Board now** is matched by plate, line, direction and boarding stop in the arrivals around the boarding time. A match does not change completion; a missing record leaves the ride unconfirmed, and after 24 hours it stays unconfirmed without further requests. Only the ride's match record is written, never its photos, notes or track. Predicted and scheduled times are never treated as observed departures.
-- **Board from Nearby** with an unsaved ride in the Log form asks before replacing it, and the earlier photos and notes are not carried over to the new vehicle.
+- **Ride** opens nearby arrivals. Each row shows line, destination, plate and scheduled or predicted arrival. Tap the row for details/map, or **Board** to start immediately. Unidentified vehicles stay visible with Board disabled; likely plates require explicit confirmation.
+- **On board** shows the timer, photo action and **End ride**. Undo is available for ten seconds. Browsing other tabs retains a compact Resume bar. There is no standalone manual new-ride form.
+- **End ride** saves the end timestamp and suggests an alighting stop from the latest GPS point. Confirm or correct the endpoint, attach at least one photo, and **Save ride**. A shorter ride can save without completing the plate. Saved rides can be corrected from History.
+- New bus rides complete a plate after **600 seconds and three confirmed stop-to-stop legs**; metro rides require **one confirmed station leg**. Stop evidence is the rider's selected endpoints, not an independently observed passage. Legacy rides retain their original timer rule. Other modes retain the 600-second requirement.
+- Drafts, photos and timestamps persist locally. GPS records while the app is open on screen; screen locking can leave track gaps but never pauses the timer. Failed saves preserve the draft, and retrying the same session does not create a duplicate.
+- Line and plate details offer live lookup. Board resolves a fresh nearby arrival with the same plate, trip and service date before starting; a current-position marker alone does not establish a boarding trip.
+- Saved rides under 24 hours old are checked against the API at most once per hour. Reconciliation updates match evidence only, preserving notes, photos and tracks. An absent match does not remove a completion.
 
 ## Privacy
 
@@ -41,7 +41,7 @@ set BKK_API_KEY=your_key_here
 python backend/server.py
 ```
 
-Open http://127.0.0.1:8000. This serves the app and the arrivals API (`/v1/arrivals`, `/v1/trip`, `/v1/health`) together. Without `BKK_API_KEY` the app runs and Nearby says live arrivals are unavailable; manual logging is unaffected. The key is read from the environment, goes only to `futar.bkk.hu`, and is never sent to the browser or written to a log. The service allows only those fixed upstream calls, validates and bounds its inputs, shares one cached answer per stop for 20 seconds, and rate limits each client. It asks the FUTAR API (version 5) for each stop with the vehicle of every trip included, so one call per stop returns every plate; the app polls every 30 seconds. FUTAR's schema has no cancellation field, so cancelled trips are not marked.
+Open http://127.0.0.1:8000. This serves the app and the arrivals API (`/v1/arrivals`, `/v1/trip`, `/v1/health`) together. Without `BKK_API_KEY` the app runs and Nearby says live arrivals are unavailable; existing local drafts and history remain available. The key is read from the environment, goes only to `futar.bkk.hu`, and is never sent to the browser or written to a log. The service allows only those fixed upstream calls, validates and bounds its inputs, shares one cached answer per stop for 20 seconds, and rate limits each client. It asks the FUTAR API (version 5) for each stop with the vehicle of every trip included, so one call per stop returns every plate; the app polls every 30 seconds. FUTAR's schema has no cancellation field, so cancelled trips are not marked.
 
 `python -m http.server 8000` still serves the app alone; Nearby then reports that live arrivals are not set up.
 
@@ -49,11 +49,11 @@ The service worker needs `localhost` or HTTPS.
 
 ### Static hosting and the Android app
 
-GitHub Pages and the Capacitor app cannot run the service. Host `python backend/server.py --api-only` somewhere with `BKK_API_KEY` set and `ALLOWED_ORIGINS=https://yeerooxy.github.io`, then set `apiBase` in `data/api.json` to its `https://` address. The key stays on that host. Until `apiBase` is set, Nearby shows that live arrivals are not set up. Nothing is deployed by this repository.
+GitHub Pages and the Capacitor app cannot run the service. Host `python backend/server.py --api-only` somewhere with `BKK_API_KEY` set and `ALLOWED_ORIGINS=https://yeerooxy.github.io`, then set `apiBase` in `data/api.json` to its `https://` address. The key stays on that host. Until `apiBase` is set, Nearby shows that live arrivals are not set up. The Pages and APK workflows publish the frontend; the API is deployed separately.
 
 ### Stop ids
 
-Nearby finds platforms through the official stop id appended to each stop in `data/stops.json` (and the platforms short turns and branches skip, listed as `x` per direction). Regenerate it with `python tools/update_catalog.py` (set `GTFS_ZIP` to a downloaded timetable to force the rebuild). Without ids Nearby reports that nearby vehicles are not available and points to the Log form. The stop list is rebuilt with one entry per platform, so an unsaved form draft from an older stop list keeps its stop text and starts from the default stops instead of guessing.
+Nearby finds platforms through the official stop id appended to each stop in `data/stops.json` (and the platforms short turns and branches skip, listed as `x` per direction). Regenerate it with `python tools/update_catalog.py` (set `GTFS_ZIP` to a downloaded timetable to force the rebuild). Without ids Nearby reports that nearby vehicles are unavailable. The stop list is rebuilt with one entry per platform, so an unsaved form draft from an older stop list keeps its stop text and starts from the default stops instead of guessing.
 
 ### Tests
 
@@ -63,6 +63,16 @@ python -I -m unittest discover -s tests -p "test_*.py" -v
 ```
 
 The Python fixtures are synthetic payloads shaped after the FUTAR schema, not live samples.
+
+Browser regression scripts (install Playwright and axe-core, or set `PLAYWRIGHT_MODULE` and `AXE_MODULE` to their module paths):
+
+```
+node tests/browser/ride-redesign.cjs
+node tests/browser/recovery.cjs
+node tests/browser/reconciliation.cjs
+```
+
+Run the local server on port 8000 first. The redesign script covers four emulated profiles in both themes; the recovery scripts cover storage failure, concurrent saves, offline loading and reconciliation. Older browser scripts describe the previous interface and are superseded for redesign validation. See [UX coverage](docs/verification/ux-coverage.md) for remaining checks.
 
 ## Install on an Android phone
 

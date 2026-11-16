@@ -7,6 +7,23 @@ const normPlate = (s) => s.replace(/\s+/g, "").toUpperCase();
 const normLine = (s) => s.trim().toUpperCase();
 const hhmm = (ms) => new Date(ms).toISOString().slice(11, 16);
 
+test("new bus rides require ten minutes and three confirmed stop legs", () => {
+  const r={ruleVersion:2,mode:"BUS",boardedAtMs:1000,endedAtMs:601000,legs:3,stopConfirmed:true};
+  assert.equal(R.qualifiesRide(r),true);
+  for(const change of [{legs:2},{legs:Infinity},{stopConfirmed:false},{endedAtMs:600000}])assert.equal(R.qualifiesRide({...r,...change}),false);
+});
+test("new metro rides qualify after one confirmed station without a ten minute minimum", () => {
+  const r={ruleVersion:2,mode:"SUBWAY",boardedAtMs:1000,endedAtMs:121000,legs:1,stopConfirmed:true};
+  assert.equal(R.qualifiesRide(r),true);assert.equal(R.qualifiesRide({...r,legs:0}),false);
+  assert.equal(R.qualifiesRide({...r,stopConfirmed:false}),false);
+  assert.equal(R.qualifiesRide({boardedAtMs:1000,endedAtMs:121000}),false);
+});
+test("import preserves new completion evidence and rejects malformed evidence", () => {
+  const e={line:"225",plate:"SKR806",time:"2026-11-16T12:00:00Z",photos:[],stops:[],track:[],ride:{plate:"SKR806",boardedAtMs:1000,endedAtMs:601000,ruleVersion:2,mode:"BUS",legs:3,stopConfirmed:true}};
+  const clean=R.cleanEntry(e,{normLine,normPlate});assert.equal(clean.ride.ruleVersion,2);assert.equal(R.countsForPlate(clean,normPlate),true);
+  assert.equal(R.cleanEntry({...e,ride:{...e.ride,legs:-1}},{normLine,normPlate}),null);
+});
+
 test("nearby shows each vehicle at its earliest stop, with trip fallback for unknown plates", () => {
   const row = (key, plate, tripId, time, vehicle = null) => ({key, plate, tripId, serviceDate:"20261116", line:"170", headsign:"Terminal", scheduledAtMs:time, predictedAtMs:null, vehicle});
   const input = [row("late","AAHY815","t1",3000), row("early","AAHY-815","t1",1000), row("other","AAHY817","t2",2000), row("unknown1",null,"t3",4000), row("unknown2",null,"t3",5000), row("different",null,"t4",6000)];

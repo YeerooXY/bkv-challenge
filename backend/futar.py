@@ -294,7 +294,9 @@ class Transit:
                 route = _dict(_dict(refs.get("routes")).get(raw.get("routeId")))
                 stop = _dict(_dict(refs.get("stops")).get(raw.get("stopId")))
                 found[v["plate"]] = {**v, "line": str(route.get("shortName") or self.routes.get(str(raw.get("routeId", "")).removeprefix("BKK_"), {}).get("name") or ""),
-                    "headsign": str(raw.get("label") or ""), "stop": str(stop.get("name") or ""), "type": str(raw.get("vehicleRouteType") or route.get("type") or "OTHER")}
+                    "headsign": str(raw.get("label") or ""), "stop": str(stop.get("name") or ""), "type": str(raw.get("vehicleRouteType") or route.get("type") or "OTHER"),
+                    "tripId": raw.get("tripId") if isinstance(raw.get("tripId"), str) and TRIP_RE.fullmatch(raw["tripId"]) else None,
+                    "serviceDate": raw.get("serviceDate") if isinstance(raw.get("serviceDate"), str) and DATE_RE.fullmatch(raw["serviceDate"]) else None}
         return {"schemaVersion": 1, "serverNowMs": now, "state": "partial" if limited or len(found) > 100 else "ok", "query": line_query if routes else query,
                 "kind": "line" if routes else "plate", "vehicles": sorted(found.values(), key=lambda v: v["plate"])[:100], "attribution": ATTRIBUTION}
 

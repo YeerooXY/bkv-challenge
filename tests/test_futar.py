@@ -147,6 +147,7 @@ class VehicleLookup(unittest.TestCase):
         r = t.vehicles("225")
         v = r["vehicles"][0]
         self.assertEqual((r["kind"], v["plate"], v["line"], v["headsign"], v["stale"]), ("line", "SKR806", "225", "Mexikoi ut M", False))
+        self.assertEqual((v["tripId"], v["serviceDate"]), ("BKK_current", "20261111"))
         self.assertEqual(calls[0][0], "vehicles-for-route.json")
         self.assertEqual(calls[0][1]["routeId"], ["BKK_2250"])
         t.vehicles("225")

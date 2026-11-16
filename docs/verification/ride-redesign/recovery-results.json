@@ -1,0 +1,18 @@
+[
+  {
+    "check": "live ride reload/photos/notes, offline timer, failed-save recovery",
+    "passed": true
+  },
+  {
+    "check": "simultaneous two-tab save creates one entry for session and removes draft",
+    "passed": true
+  },
+  {
+    "check": "legacy unfinished ride with missing plate retains correction controls after reload",
+    "passed": true
+  },
+  {
+    "check": "GPS unavailable permits completion with rider-confirmed stops and duration",
+    "passed": true
+  }
+]

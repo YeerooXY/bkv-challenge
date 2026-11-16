@@ -14,25 +14,25 @@
 <body>
 <main id="app">
   <section id="view-log" class="view" aria-labelledby="h-log" hidden>
-    <h1 id="h-log" tabindex="-1">Log a ride</h1>
+    <h1 id="h-log" tabindex="-1">Ride</h1>
     <div id="ride-bar" class="ridebar" role="group" aria-labelledby="ride-title">
       <h2 id="ride-title" tabindex="-1">Ride timer</h2>
       <p id="ride-info" class="sub"></p>
-      <p id="ride-clock" class="clock" aria-hidden="true"></p>
+      <p id="ride-clock" class="clock" aria-label="Elapsed ride time" aria-live="off" tabindex="0"></p><p id="ride-rule" class="sub"></p>
       <p id="ride-status" class="sub" role="status" aria-live="polite"></p>
       <div class="row">
         <button type="button" id="ride-board" class="primary">Board now</button>
-        <button type="button" id="ride-off" class="primary" hidden>Get off</button>
-        <button type="button" id="ride-discard" hidden>Discard ride</button>
+        <button type="button" id="ride-off" class="primary" hidden>End ride</button>
+        <button type="button" id="ride-undo" hidden>Undo</button><button type="button" id="ride-discard" hidden>Discard</button>
       </div>
       <details id="ride-note-gps"><summary>Location and screen lock</summary><p class="sub">Location is saved on this device for this ride. GPS records while the app is open on screen; a locked phone or another app can leave gaps in the track. The ride timer keeps counting through gaps and outages.</p></details>
     </div>
-    <div id="log-mode" class="seg" role="group" aria-label="Log mode">
+    <div id="log-mode" hidden class="seg" role="group" aria-label="Log mode">
       <button type="button" data-mode="nearby" aria-pressed="true">Nearby</button>
       <button type="button" data-mode="form" aria-pressed="false">Log form</button>
     </div>
     <section id="nearby" aria-labelledby="nb-title" hidden>
-      <h2 id="nb-title" tabindex="-1">Vehicles near you</h2>
+      <h2 id="nb-title" tabindex="-1">Nearby</h2>
       <div class="row"><button type="button" id="nb-locate" class="primary">Refresh</button><button type="button" id="nb-more" hidden>Next stops</button></div>
       <p id="nb-status" class="sub" role="status" aria-live="polite"></p>
       <details id="nb-filter" hidden><summary id="nb-stops-sum">Stops</summary>
@@ -41,6 +41,7 @@
       <p id="nb-credit" class="sub" hidden>Data source: BKK Zrt., CC BY 4.0</p>
     </section>
     <form id="form" novalidate>
+      <fieldset id="identity-fields" hidden><legend>Ride details</legend>
       <label for="line">Line</label>
       <div class="combo"><input id="line" role="combobox" aria-expanded="false" aria-controls="line-sug" aria-autocomplete="list" autocomplete="off" autocapitalize="characters" required><ul id="line-sug" class="sug" role="listbox" aria-label="Line suggestions" hidden></ul></div>
       <label for="plate">License plate</label>
@@ -48,39 +49,42 @@
       <label for="when">When</label>
       <input id="when" type="datetime-local" required>
 
+      </fieldset>
       <fieldset id="stop-picker" hidden>
-        <legend>Direction and stops</legend>
+        <legend>Stops</legend>
         <div id="dirs" class="dirs" role="radiogroup" aria-label="Direction"></div>
         <div class="two">
           <div><label for="from">Boarding stop</label><select id="from"></select><button type="button" id="gps-from">Use my location</button></div>
           <div><label for="to">Getting off at</label><select id="to"></select><button type="button" id="gps-to">Use my location</button></div>
         </div>
         <p id="gps-msg" role="status" aria-live="polite"></p>
-        <p id="ride-note" role="status" aria-live="polite"></p>
+        <p id="ride-note" role="status" aria-live="polite" hidden></p>
       </fieldset>
 
-      <label for="stops">Stops travelled (filled in from the choices above, editable)</label>
-      <textarea id="stops" rows="3"></textarea>
+      <details id="stop-text"><summary>Correct stop list</summary><label for="stops">Stops</label>
+      <textarea id="stops" rows="3"></textarea></details>
 
-      <fieldset id="gps-proof">
+      <details id="gps-proof"><summary>Location details</summary><fieldset>
         <legend>GPS track</legend>
         <div class="row"><button type="button" id="track-btn">Record my track</button><button type="button" id="gpx-btn">Add Garmin GPX</button><input id="gpx-file" type="file" accept=".gpx,application/gpx+xml,text/xml" hidden></div>
         <p id="track-status" class="sub" role="status" aria-live="polite"></p>
       </fieldset>
 
+      </details>
       <span id="photos-label" class="lbl">Photos (at least one)</span>
       <ul id="thumbs" class="thumbs" aria-labelledby="photos-label"></ul>
       <input id="photo-camera" type="file" accept="image/*" capture="environment" hidden>
       <input id="photo-gallery" type="file" accept="image/*" multiple hidden>
 
-      <label for="notes">Notes: looks, feel, condition</label>
-      <textarea id="notes" rows="4"></textarea>
+      <details id="ride-notes"><summary>Notes</summary><label for="notes">Notes</label>
+      <textarea id="notes" rows="2"></textarea></details>
       <p id="msg" role="status" aria-live="polite"></p>
       <div class="row">
         <button id="save" type="submit" class="primary">Save ride</button>
         <button id="cancel-edit" type="button" hidden>Cancel edit</button>
       </div>
     </form>
+    <section id="saved-result" hidden aria-labelledby="saved-title"><h2 id="saved-title" tabindex="-1">Ride saved</h2><p id="saved-info"></p><button id="saved-nearby" type="button" class="primary">Nearby</button></section>
   </section>
 
   <section id="view-lines" class="view" aria-labelledby="h-lines" hidden>
@@ -102,22 +106,22 @@
     <div id="hero"></div>
     <h2>Collections</h2>
     <div id="tcards" class="tcards"></div>
-    <h2>Out of service the longest</h2>
+    <h2>Last reported longest ago</h2>
     <div id="idle-list"></div>
     <h2>By model</h2>
     <p class="sub">Tap a model to see the plates still missing.</p>
     <div id="by-model"></div>
     <h2>Daily</h2>
     <table id="daily"><thead><tr><th>Day</th><th>New lines</th><th>New plates</th></tr></thead><tbody></tbody></table>
-    <h2>App</h2>
+    <details id="settings"><summary>Settings and backup</summary><label for="theme">Appearance</label><select id="theme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select><h2>App</h2>
     <p id="version" class="sub"></p>
     <div class="row"><button id="update-btn" type="button">Check for updates</button><a id="update-link" class="btn primary" hidden target="_blank" rel="noopener">Download update</a></div>
     <p id="update-msg" role="status" aria-live="polite" class="sub"></p>
     <details id="credits"><summary>Photo credits</summary><div id="credits-list" class="sub"></div></details>
-    <h2>Backup</h2>
+    <details><summary>Location and privacy</summary><p class="sub">Rides, photos and GPS tracks stay on this device. GPS records while the app is on screen; screen lock can leave gaps. The timer keeps counting. Live lookups send selected stop IDs or your search query to the service. Maps load tiles from OpenStreetMap. Export backups before clearing app data.</p></details><h2>Backup</h2>
     <div class="row"><button id="export" type="button">Export JSON</button><button id="import-btn" type="button">Import JSON</button><input id="import" type="file" accept="application/json" hidden></div>
+  </details>
   </section>
-
   <section id="view-history" class="view" aria-labelledby="h-history" hidden>
     <h1 id="h-history" tabindex="-1">History</h1>
     <ul id="history" class="history"></ul>
@@ -140,9 +144,10 @@
   <div id="detail-body"></div>
 </dialog>
 
+<button id="active-ride" type="button" hidden aria-label="Resume ride"><strong id="active-plate"></strong><span id="active-time"></span><span>Resume</span></button>
 <nav id="tabs" aria-label="Views">
   <button data-view="progress" aria-current="page"><span class="pill"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.5"/></svg></span>Progress</button>
-  <button data-view="log"><span class="pill"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg></span>Log</button>
+  <button data-view="log"><span class="pill"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg></span>Ride</button>
   <button data-view="lines"><span class="pill"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8 18h5a4 4 0 0 0 0-8h-2a4 4 0 0 1 0-8h5"/></svg></span>Lines</button>
   <button data-view="plates"><span class="pill"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="10" rx="2.5"/><path d="M7 11h4M7 14h7"/></svg></span>Plates</button>
   <button data-view="history"><span class="pill"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg></span>History</button>

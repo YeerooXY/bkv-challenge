@@ -1,0 +1,10 @@
+[
+  {
+    "check": "API reconciliation preserves an edit saved during the request and retains photo",
+    "passed": true
+  },
+  {
+    "check": "v26 service worker loads app offline and never replaces API failure with cached HTML",
+    "passed": true
+  }
+]

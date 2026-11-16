@@ -9,7 +9,7 @@ const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toSt
 const hhmm = (ms) => new Date(ms).toLocaleTimeString("hu-HU", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/Budapest" });
 const PAGE_STOPS = 6, NEAR_M = 1000, POLL_MS = 30000; // the server caches a stop for 20 s, so one poll per 30 s costs one upstream call per stop
 const SAVED = "ride-saved:"; // drafts row left by a saved session: its entry id, so a second tab updates that entry
-const focusRow = (key) => ([...$("nb-list").children].find((x) => x.dataset && x.dataset.key === key) || $("nb-title")).focus();
+const focusRow = (key) => ([...$("nb-list").querySelectorAll(".nb-row")].find(x => x.dataset.key === key) || $("nb-title")).focus();
 
 let nbCfg = { apiBase: "", tiles: "", attribution: "", attributionUrl: "" };
 const nb = { pos: null, cands: [], offset: 0, off: new Set(), arrivals: [], skew: 0, at: 0, failed: null, seq: 0, timer: null, open: null, mode: "nearby", lines: null, busy: false, last: 0 };
@@ -71,23 +71,27 @@ function nearbyStops(pos) {
 const stopById = (id) => { const i = stopData.stops.findIndex((s) => s[3] === id); return i < 0 ? null : { i, name: stopData.stops[i][0], lat: stopData.stops[i][1], lon: stopData.stops[i][2] }; };
 const nbSay = (t) => { if ($("nb-status").textContent !== t) $("nb-status").textContent = t; }; // an unchanged status is not announced again
 const NB_PERMANENT = ["absent", "config", "nokey"]; // retrying cannot help until the deployment changes
-const nbFail = (code) => `${NB_TEXT[code] || NB_TEXT.unavailable} Use the Log form to log by hand.`;
+const nbFail = (code) => `${NB_TEXT[code] || NB_TEXT.unavailable} Try Refresh when the service is available.`;
 
 // One locate + request at a time. `auto` (entering Log, the 30 s timer) keeps the rider's stop choices while the nearby stops are unchanged.
 async function nbFind(auto) {
   if (nb.busy) return;
   nb.busy = true; nb.last = Date.now();
+  $("nb-locate").setAttribute("aria-busy", "true");
+  if (!nb.arrivals.length) $("nb-list").replaceChildren(...[0,1,2].map(() => { const p = el("div", "skeleton"); p.setAttribute("aria-hidden", "true"); return p; }));
   try {
     if (!auto || !nb.pos) nbSay("Finding you...");
-    try { nb.pos = await locate(0); } catch { return nbSay(navigator.geolocation ? "Could not get your location. Allow location access and press Refresh, or use the Log form." : "This device cannot share its location. Use the Log form."); }
+    try { nb.pos = await locate(0); } catch { return nbSay(navigator.geolocation ? "Could not get your location. Allow location access and press Refresh." : "This device cannot share its location. Check location permissions."); }
     if (!stopData.stops.some((s) => s[3])) return nbSay(nbFail("stops"));
     const cands = nearbyStops(nb.pos), same = cands.length === nb.cands.length && cands.every((c, i) => c.id === nb.cands[i].id);
     nb.cands = cands;
     if (!same) { nb.offset = 0; nb.off = new Set(); }
-    if (!cands.length) { nb.arrivals = []; nbRows(); nbStopChips(); nbPoll(); return nbSay("No stops with vehicle data within 1 km of you. Use the Log form."); }
+    if (!cands.length) { nb.arrivals = []; nbRows(); nbStopChips(); nbPoll(); return nbSay("No stops with vehicle data within 1 km of you. Refresh after moving closer to a stop."); }
     await nbLoad(!same); nbStopChips(); nbPoll();
   } finally {
     nb.busy = false;
+    $("nb-locate").removeAttribute("aria-busy");
+    if (!nb.arrivals.length) nbRows();
     if (nb.mode !== "nearby" || $("view-log").hidden || document.visibilityState !== "visible") nb.last = 0; // the rider left while this ran: refresh on return
   }
 }
@@ -167,15 +171,20 @@ function nbRow(a, now) {
   const colors = lineColors(lineObj || { type: a.type }); b.style.setProperty("--line-c", "#" + colors[0]);
   b.append(badge(a.line, colors), main, eta, el("span", "sr", "Opens the map and the Board button."));
   b.onclick = () => nbOpen(a);
-  return b;
+  const row = el("div", "vehicle-entry"); row.dataset.key = a.key; row.style.setProperty("--line-c", "#" + colors[0]);
+  const board = el("button", "board-action", "Board"); board.type = "button";
+  board.disabled = !!rideSession || !a.plate; board.setAttribute("aria-label", `Board ${a.plate || "unidentified vehicle"} on line ${a.line}`);
+  board.onclick = async () => { board.setAttribute("aria-busy", "true"); try { await nbBoard(a); } finally { board.removeAttribute("aria-busy"); } };
+  row.append(b, board); return row;
 }
 function nbRows() {
-  const box = $("nb-list"), had = box.contains(document.activeElement) ? document.activeElement : null, idx = had ? [...box.children].indexOf(had) : -1;
+  if ($("nb-list").matches(":active")) { setTimeout(nbRows, 150); return; }
+  const box = $("nb-list"), had = box.contains(document.activeElement) ? document.activeElement : null, oldRow = had && had.closest(".vehicle-entry"), idx = oldRow ? [...box.children].indexOf(oldRow) : -1;
   const now = Date.now() + nb.skew, shown = new Set(nbPage().filter((c) => !nb.off.has(c.id)).map((c) => c.id));
   const list = RideCore.uniqueVehicles(nb.arrivals.filter((a) => shown.has(a.stopId) && (RideCore.timeView(a, hhmm).effectiveMs ?? now) >= now - 60000), hhmm);
   const rows = list.map((a) => nbRow(a, now));
   box.replaceChildren(...(rows.length || !nb.at || nb.failed || !nb.cands.length ? rows : [el("p", "empty", "Nothing arriving at the selected stops.")]));
-  if (had) (rows.find((r) => r.dataset.key === had.dataset.key) || rows[Math.min(idx, rows.length - 1)] || $("nb-title")).focus(); // never fall to the page body
+  if (had) { const row = rows.find(r => r.dataset.key === oldRow?.dataset.key) || rows[Math.min(idx, rows.length - 1)]; (row?.querySelector(had.classList.contains("board-action") ? ".board-action" : ".nb-row") || $("nb-title")).focus(); }
 }
 
 // ---------- map sheet ----------
@@ -203,7 +212,7 @@ function nbOpen(a) {
   } else facts.append(el("li", "", "No vehicle position yet."));
   if (nb.pos) pts.push({ lat: nb.pos[0], lon: nb.pos[1], kind: "me" });
   const map = el("div", "nb-map"), board = el("button", "primary", a.likelyPlate ? "Board and enter plate" : "Board this vehicle"); board.type = "button";
-  board.disabled = !!rideSession; board.onclick = () => nbBoard(a);
+  board.disabled = !!rideSession || !a.plate; board.onclick = () => nbBoard(a);
   const row = el("div", "row"); row.append(board);
   if (a.likelyPlate) {
     row.style.flexDirection = "column";
@@ -211,7 +220,9 @@ function nbOpen(a) {
     use.onclick = () => nbBoard({ ...a, plate: a.likelyPlate }); row.append(use);
   }
   if (rideSession) row.append(el("span", "sub", "Finish or discard the current ride first."));
-  body.append(map, facts, row, el("p", "sub", "Boarding starts the ride timer and records your location on this device until you get off."));
+  const brief = el("ul", "plain"); brief.append(...[...facts.children].slice(0,2));
+  const source = el("details", "detail-section"); source.append(el("summary", "", "Source details"),facts);
+  body.append(map,brief,row,source);
   $("detail").showModal();
   const text = (why) => map.replaceChildren(el("p", "sub", why));
   if (!pts.length) text("No coordinates for this stop or vehicle.");
@@ -228,7 +239,7 @@ const NB_BOARD_STATUS = (s) => `Boarded line ${s.line}${s.plate ? ", plate " + s
 async function nbBoard(a) {
   const key = nb.open; nb.open = null; $("detail").close();
   const stop = stopById(a.stopId);
-  const started = await startRide({ source: "nearby", line: a.line, plate: a.plate || "", headsign: a.headsign, stop: { id: a.stopId, name: stop ? stop.name : "" },
+  const started = await startRide({ source: "nearby", line: a.line, type:a.type, plate: a.plate || "", headsign: a.headsign, stop: { id: a.stopId, name: stop ? stop.name : "" },
     trip: { tripId: a.tripId, serviceDate: a.serviceDate, vehicleId: a.vehicle && a.vehicle.id, stopId: a.stopId, scheduledAtMs: a.scheduledAtMs, predictedAtMs: a.predictedAtMs } });
   if (!started) focusRow(key); // a refused Board leaves focus on the row it came from
 }
@@ -260,15 +271,15 @@ const startRow = (s) => new Promise((res, rej) => {
 async function startRide(info) {
   const nearby = info.source === "nearby", say = (t) => (nb.mode === "nearby" ? nbSay(t) : rideSay(t, true)); // the idle ride bar is hidden in Nearby mode
   if (rideSession) { say("Finish or discard the current ride first."); return false; }
-  if (editing) { say("Finish or cancel the edit in the Log form first."); return false; }
+  if (editing) { say("Finish or cancel the saved-ride edit first."); return false; }
   const line = normLine(info.line || ""), plate = info.plate ? normPlate(info.plate) : "";
   if (!line) { show("log"); rideSay("Enter the line first.", true); $("line").focus(); return false; }
-  if (!nearby && !plate) { rideSay("Enter the license plate first.", true); $("plate").focus(); return false; }
-  // Nearby Board replaces the form; the manual Board keeps its form and photos and replaces only the track.
-  const dirty = nearby ? !!($("line").value.trim() || $("plate").value.trim() || $("notes").value.trim() || photos.length || trackPts.length) : trackPts.length > 0;
-  if (dirty && !confirm(nearby ? "The Log form holds an unsaved ride. Boarding replaces its line, plate, notes, photos and GPS track. Replace it?" : "Replace the GPS track already in the form with this ride's track?")) return false;
+  if (!nearby || !plate) { nbSay("Select an identified live vehicle to board."); return false; }
+  // Replacing a recovered, unsaved draft requires explicit confirmation.
+  const dirty = !!($("line").value.trim() || $("plate").value.trim() || $("notes").value.trim() || photos.length || trackPts.length);
+  if (dirty && !confirm("Replace the previous unsaved draft and its photos?")) return false;
   const trip = info.trip || (info.stop && info.stop.id ? { tripId: null, serviceDate: null, vehicleId: null, stopId: info.stop.id, scheduledAtMs: null, predictedAtMs: null } : null); // a manual ride keeps its stop so it can be matched later
-  const s = { v: 1, id: uuid(), source: info.source, line, plate, boardedAtMs: Date.now(), endedAtMs: null, trip, stopName: info.stop && info.stop.name || "", track: [], tab: TAB, toTouched: false };
+  const s = { v: 1, ruleVersion:2, mode:typeOf(info.type || allLines().find(l=>l.id===line)?.type || "OTHER"), id: uuid(), source: info.source, line, plate, boardedAtMs: Date.now(), endedAtMs: null, trip, stopName: info.stop && info.stop.name || "", track: [], tab: TAB, toTouched: false };
   if (starting) return false; // a double tap must not start two sessions
   starting = true;
   try { if (!(await startRow(s))) { say("Another tab already has a ride in progress. Reload this page to see it."); return false; } }
@@ -276,21 +287,15 @@ async function startRide(info) {
   finally { starting = false; }
   if (nearby && dirty) resetForm(); // accepted: nothing of the earlier ride carries over to this vehicle
   trackPts = [];
-  if (nearby) applyBoarding(s, info.headsign, info.stop);
-  else {
-    $("when").value = toLocalInput(new Date(s.boardedAtMs));
-    if (pick.data) { pick.to = pick.from; pick.edited = false; $("to").value = String(pick.to); applyStops(); }
-  }
-  rideSession = s; claimTab(); startTrack(); saveDraft();
+  applyBoarding(s, info.headsign, info.stop);
+  rideSession = s; $("saved-result").hidden = true; show("log", false); claimTab(); startTrack(); saveDraft();
   nbSetMode("form"); renderRideBar();
-  rideSay(NB_BOARD_STATUS(s) + (plate ? "" : " Enter the plate on the form."));
+  rideSay("Ride started.");
   $("ride-title").focus();
   return true;
 }
 $("ride-board").onclick = () => {
-  if (rideSession && !ownsTab()) { claimTab(); startTrack(); return renderRideBar(); } // take over a ride recorded in another tab
-  const idx = pick.data ? pick.data[pick.dir].s[pick.from] : null;
-  startRide({ source: "manual", line: $("line").value, plate: $("plate").value, stop: idx === null ? null : { id: stopData.stops[idx][3] || null, name: stopName(idx) } });
+  if (rideSession && !ownsTab()) { claimTab(); startTrack(); renderRideBar(); $("ride-title").focus(); }
 };
 
 // ---------- session storage and ownership ----------
@@ -342,24 +347,46 @@ const clockText = (ms) => { const s = Math.floor(Math.max(0, ms) / 1000), h = Ma
 let clockTimer = null, announced = false;
 function tickClock() {
   const s = rideSession; if (!s) return;
-  const end = s.endedAtMs ?? Date.now();
-  $("ride-clock").textContent = clockText(end - s.boardedAtMs);
-  if (s.endedAtMs === null && !announced && RideCore.qualifies(s.boardedAtMs, Date.now())) { announced = true; rideSay("10 minutes on board. This plate counts once you get off and save the ride."); }
+  const value = clockText((s.endedAtMs ?? Date.now()) - s.boardedAtMs);
+  $("ride-clock").textContent = value; $("active-time").textContent = value;
+  const undo = s.endedAtMs === null && Date.now() - s.boardedAtMs < 10000;
+  if ($("ride-undo").hidden === undo) {
+    const focused = document.activeElement === $("ride-undo"); $("ride-undo").hidden = !undo;
+    if (focused && !undo) $("ride-off").focus();
+  }
 }
 function renderRideBar() {
-  const s = rideSession, rec = sessionRecording(), mine = ownsTab();
+  const s = rideSession, rec = sessionRecording(), mine = ownsTab(), ended = !!s && !rec;
   clearInterval(clockTimer); clockTimer = null;
-  $("ride-bar").hidden = !s && nb.mode === "nearby"; // idle: Board lives on each vehicle row in Nearby mode; an active ride is always shown
-  $("ride-clock").hidden = !s; $("ride-board").hidden = !!s && mine; $("ride-off").hidden = !rec || !mine; $("ride-discard").hidden = !s || !mine;
-  $("ride-board").textContent = s ? "Record in this tab" : "Board now";
-  if (!s) { $("ride-info").textContent = "Board now starts the timer and records your location on this device. A plate completes after 10 minutes on board."; $("ride-clock").textContent = ""; return; }
-  announced = RideCore.qualifies(s.boardedAtMs, s.endedAtMs ?? Date.now());
-  const ended = s.endedAtMs !== null, ok = RideCore.qualifies(s.boardedAtMs, s.endedAtMs);
-  $("ride-info").textContent = `Line ${s.line}${s.plate ? ", plate " + s.plate : ", plate not entered"}. Boarded ${hhmm(s.boardedAtMs)}${s.stopName ? " at " + s.stopName : ""}.` +
-    (ended ? ` Got off ${hhmm(s.endedAtMs)}. ${ok ? "This ride counts for the plate once saved." : "Under 10 minutes: it saves, but does not complete the plate."}` : "") + (mine ? "" : " This ride is recording in another tab.");
-  tickClock();
-  if (rec) clockTimer = setInterval(tickClock, 1000);
+  const state = editing ? "edit" : !s ? "idle" : ended ? "finish" : "active";
+  if (document.body.dataset.rideState !== state) {
+    document.body.dataset.rideState = state;
+    $("ride-bar").getAnimations().forEach(a=>a.cancel());
+    if (s && !matchMedia("(prefers-reduced-motion: reduce)").matches) $("ride-bar").animate([{opacity:.6,transform:"translateY(6px)"},{opacity:1,transform:"none"}],{duration:200,easing:"ease-out"});
+  }
+  $("ride-bar").hidden = !s; $("ride-clock").hidden = !s;
+  $("ride-board").hidden = !s || mine; $("ride-board").textContent = "Record in this tab";
+  $("ride-off").hidden = !rec || !mine; $("ride-discard").hidden = !s || !mine;
+  $("identity-fields").hidden = !editing && !(s && !s.plate && s.ruleVersion !== 2);
+  $("stop-picker").hidden = !pick.data || (!editing && !ended);
+  $("form").hidden = !s && !editing;
+  $("save").hidden = rec;
+  const barHidden = $("active-ride").hidden;
+  $("active-ride").hidden = !s || !$("view-log").hidden;
+  if (barHidden && !$("active-ride").hidden && !matchMedia("(prefers-reduced-motion: reduce)").matches) $("active-ride").animate([{opacity:0,transform:"translateY(6px)"},{opacity:1,transform:"none"}],{duration:180,easing:"ease-out"});
+  document.body.classList.toggle("has-ride-bar", !$("active-ride").hidden);
+  $("h-log").textContent = editing ? "Edit ride" : ended ? "Finish ride" : rec ? "On board" : "Ride";
+  if (!s) { $("ride-undo").hidden = true; return; }
+  $("ride-title").textContent = s.plate || "Vehicle unidentified";
+  $("ride-info").textContent = `Line ${s.line}  ${s.stopName || "Boarding stop unavailable"}  ${hhmm(s.boardedAtMs)}`;
+  $("active-plate").textContent = `${s.line}  ${s.plate}`;
+  $("ride-rule").textContent = s.ruleVersion===2 ? (s.mode==="SUBWAY" ? "1 station to complete this carriage" : s.mode==="BUS" ? "10 minutes and 3 stop-to-stop legs to complete this plate" : "10 minutes to complete this plate") : "10 minutes to complete this plate";
+  if (ended) $("ride-rule").textContent = RideCore.qualifiesRide(rideRecord(s.plate)) ? "Completion requirements met" : "This ride will save without completing the plate";
+  tickClock(); if (rec) clockTimer = setInterval(tickClock, 1000);
 }
+$("active-ride").onclick = () => { show("log",false); renderRideBar(); $("ride-title").focus(); };
+$("saved-nearby").onclick = () => { $("saved-result").hidden = true; nbSetMode("nearby"); $("nb-title").focus(); };
+
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { tickClock(); if (rideSession && sessionRecording() && ownsTab()) startTrack(); } });
 
 // ---------- Get off ----------
@@ -371,8 +398,8 @@ async function rideOff() {
   if (!(await saveSession())) return;
   const note = suggestAlighting(s);
   renderRideBar(); nbSetMode("form");
-  rideSay(`Got off at ${hhmm(s.endedAtMs)}. ${note}`);
-  (pick.data && !$("stop-picker").hidden ? $("to") : $("stops")).focus();
+  rideSay(note.startsWith("Suggested") ? "Check the suggested getting-off stop." : note);
+  $("save").focus();
 }
 // Suggest, never decide: the nearest later stop to the last GPS point, only if that point is recent. Edits are kept.
 function suggestAlighting(s) {
@@ -386,12 +413,18 @@ function suggestAlighting(s) {
 }
 $("ride-off").onclick = rideOff;
 $("to").addEventListener("change", () => { if (sessionRecording()) { rideSession.toTouched = true; saveSession(); } }); // stored now: a reload mid-ride must not lose the choice
-$("ride-discard").onclick = async () => {
-  if (!rideSession || !confirm("Discard this ride? The timer and its GPS track are deleted. The form is kept.")) return;
-  try { await del("drafts", SESSION_KEY); } catch { return rideSay("Could not discard: storage is unavailable.", true); }
-  rideSession.saved = true; trackPts = []; updateTrackUi(); rideDone(); saveDraft(); rideSay("Ride discarded.");
-  ($("ride-bar").hidden ? $("nb-title") : $("ride-board")).focus(); // in Nearby mode the idle bar is hidden
-};
+async function discardRide(undo = false) {
+  if (!rideSession || (!undo && !confirm("Discard this ride and its photos?"))) return;
+  if (undo && Date.now()-rideSession.boardedAtMs>=10000) return;
+  clearTimeout(draftTimer); draftGen++;
+  try { await del("drafts", SESSION_KEY); await del("drafts", "form"); } catch { return rideSay("Could not discard. Try again.", true); }
+  rideSession.saved = true; rideDone(); resetForm(); nbSetMode("nearby");
+  nbSay(undo ? "Boarding undone." : "Ride discarded."); $("nb-title").focus();
+}
+$("ride-discard").onclick = () => discardRide();
+$("ride-undo").onclick = () => discardRide(true);
+$("to").addEventListener("change", renderRideBar);
+$("from").addEventListener("change", renderRideBar);
 
 // ---------- restore, mode, reconcile ----------
 const validPoint = (p) => Array.isArray(p) && p.length === 3 && p.every((x) => typeof x === "number" && Number.isFinite(x)) && Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180;
@@ -412,11 +445,12 @@ async function restoreRide() {
   window.addEventListener("online", reconcileRides); reconcileRides();
 }
 function nbSetMode(m) {
+  m = rideSession || editing ? "form" : "nearby";
   nb.mode = m;
-  $("nearby").hidden = m !== "nearby"; $("form").hidden = m !== "form";
+  $("nearby").hidden = m !== "nearby" || !$("saved-result").hidden; $("form").hidden = m !== "form";
   document.querySelectorAll("#log-mode button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === m)));
   renderRideBar(); nbPoll();
-  if (m === "nearby") nbAuto();
+  if (m === "nearby" && $("saved-result").hidden) nbAuto();
 }
 document.querySelectorAll("#log-mode button").forEach((b) => (b.onclick = () => nbSetMode(b.dataset.mode)));
 $("nb-locate").onclick = () => { nb.paused = false; nbFind(false); }; // an explicit Refresh lifts the pause
@@ -433,7 +467,8 @@ $("nb-more").onclick = async () => {
 function nearbyView(view) {
   if (view === "log" && (rideSession || editing) && nb.mode === "nearby") return nbSetMode("form");
   nbPoll();
-  if (view === "log") nbAuto();
+  renderRideBar();
+  if (view === "log" && $("saved-result").hidden) nbAuto();
 }
 document.addEventListener("visibilitychange", () => nbAuto());
 
@@ -469,6 +504,7 @@ function makeLiveLookup(query) {
     const q = query().trim(), request = ++seq;
     if (!q) { status.textContent = "Enter a line or plate first."; return; }
     status.textContent = "Looking up vehicles..."; button.setAttribute("aria-busy", "true");
+    if (!list.children.length) list.replaceChildren(...[0,1].map(()=>{const e=el("div","skeleton");e.setAttribute("aria-hidden","true");return e;}));
     try {
       await loadNbConfig();
       const result = await api("/v1/vehicles", {q});
@@ -478,10 +514,13 @@ function makeLiveLookup(query) {
         const b = el("button", "nb-row"); b.type = "button";
         const colors = lineColors(allLines().find(l => l.id === v.line) || {type:v.type});
         b.style.setProperty("--line-c", "#"+colors[0]);
-        const text = el("span", "nb-main"); text.append(el("strong", "nb-head", v.headsign || "Destination unavailable"), el("span", "nb-plate", v.plate),
-          el("span", "sub", v.stop ? `Reported stop: ${v.stop}` : Number.isFinite(v.lat) && Number.isFinite(v.lon) ? `${v.lat.toFixed(5)}, ${v.lon.toFixed(5)}` : "Position unavailable"),
-          el("span", "sub", v.positionAtMs ? `Last report ${hhmm(v.positionAtMs)}${v.stale ? " · Out of date" : ""}` : "Report time unavailable"));
-        b.append(badge(v.line || "?", colors), text); b.onclick = () => openLiveVehicle(v, b); return b;
+        const text = el("span", "nb-main"), meta = el("span", "nb-meta");
+        meta.append(el("strong", "nb-plate", v.plate), el("span", "sub", v.positionAtMs ? `${hhmm(v.positionAtMs)}${v.stale ? "  Out of date" : ""}` : "Time unavailable"));
+        text.append(el("strong", "nb-head", v.headsign || "Destination unavailable"), meta, el("span", "sub location", v.stop || "Open map for position"));
+        b.append(badge(v.line || "?", colors), text); b.onclick = () => openLiveVehicle(v, b);
+        const entry = el("div", "vehicle-entry"), board = el("button", "board-action", "Board"); board.type="button";entry.style.setProperty("--line-c", "#"+colors[0]);
+        board.disabled=!!rideSession || v.stale || !v.tripId || !v.serviceDate; board.setAttribute("aria-label",`Board ${v.plate} on line ${v.line}`);
+        board.onclick=()=>boardLiveVehicle(v,board,status);entry.append(b,board);return entry;
       }));
       status.textContent = result.vehicles.length ? `${result.vehicles.length} vehicle${result.vehicles.length===1?"":"s"}${result.kind==="line" ? " on line " + result.query : " found"}.${result.state==="partial" ? " Some results may be missing." : ""}` : "No live vehicle found. It may be out of service or not reporting. This lookup does not include earlier shifts.";
     } catch(e) { if(request===seq) {list.replaceChildren();status.textContent = ["bad-search", "search-too-short"].includes(e.code) ? "Enter a line number or at least three plate characters (letters and numbers)." : `${NB_TEXT[e.code] || "Could not look up vehicles."} Press Find live vehicles to retry.`;} }
@@ -489,6 +528,20 @@ function makeLiveLookup(query) {
   };
   button.onclick = run;
   return {box,run,clear};
+}
+async function boardLiveVehicle(v, button, status) {
+  if (button.getAttribute("aria-busy")==="true") return;
+  button.setAttribute("aria-busy","true"); status.textContent="Checking boarding stop...";
+  try {
+    const pos=await locate(0), stops=nearbyStops(pos).filter(c=>(stopLines().get(c.i)||[]).some(l=>l.line===v.line)).slice(0,PAGE_STOPS);
+    if (!stops.length) throw nbErr("stops");
+    const result=await api("/v1/arrivals",{stopId:stops.map(s=>s.id)});
+    if (!Array.isArray(result.arrivals)||!result.arrivals.every(validArrival)) throw nbErr("format");
+    const match=RideCore.sortArrivals(result.arrivals.filter(a=>a.tripId===v.tripId&&a.serviceDate===v.serviceDate&&a.plate&&normPlate(a.plate)===normPlate(v.plate)),hhmm)[0];
+    if (!match) {status.textContent="No matching boarding trip nearby. Open Ride to choose its departure.";return;}
+    await nbBoard(match);
+  } catch(e) {status.textContent="Could not confirm the boarding stop. Retry or choose the vehicle in Ride.";}
+  finally {button.removeAttribute("aria-busy");}
 }
 for (const kind of ["plates"]) {
   const input = $("q-"+kind), lookup = makeLiveLookup(()=>input.value);
@@ -542,3 +595,11 @@ async function reconcileRides() {
   } finally { reconciling = false; }
   if (wrote) { await reload(); if (!$("view-history").hidden) renderHistory(); }
 }
+
+// Consolidated filters retain the existing controls and handlers.
+for (const kind of ["lines","plates"]) {
+ const tools=$("q-"+kind).parentElement, panel=el("details","filter-panel"), summary=el("summary","","Filters and sort");
+ panel.append(summary);[...tools.children].filter(n=>n!==$("q-"+kind)).forEach(n=>panel.append(n));tools.append(panel);
+}
+try { const t=localStorage.getItem("bkv-theme")||"system";$("theme").value=t;document.documentElement.dataset.theme=t; } catch {}
+$("theme").onchange=()=>{document.documentElement.dataset.theme=$("theme").value;try{localStorage.setItem("bkv-theme",$("theme").value);}catch{}};
