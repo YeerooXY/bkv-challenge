@@ -1,0 +1,12 @@
+[
+  {
+    "name": "published-android",
+    "passed": true,
+    "errors": []
+  },
+  {
+    "name": "published-iphone",
+    "passed": true,
+    "errors": []
+  }
+]

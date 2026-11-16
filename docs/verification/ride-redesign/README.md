@@ -11,3 +11,14 @@ The new normal path is Board, End ride, Save ride, plus photo selection/capture.
 Source-backed wording fixes include obsolete README/manual-logging advice and the Progress heading that called missing reports 'out of service'. The current heading describes last reports.
 
 No physical devices or screen readers were used. Real map tiles were disabled in fixture tests; native camera behavior remains unverified.
+
+## Release verification
+
+Implementation commit: a9c8c891a106aaf6dbc4f6098a80b5978c1f0fee.
+
+- Pages deployment 43927126923 succeeded. Published Android Chromium and iPhone WebKit smoke checks confirmed the new Ride landing screen, removed manual switch and line-225 Vehicles section without JavaScript errors. Captures and published-results.json are retained here.
+- Android build 43927129406 succeeded and published signed release v1.24, BKV-Challenge.apk (9,834,461 bytes). Native-device installation remains unverified.
+- Backend health and live line-7 trip metadata were checked after installation. Line 225 returned an empty successful response at that time.
+
+Website: https://yeerooxy.github.io/bkv-challenge/
+Android: https://github.com/YeerooXY/bkv-challenge/releases/download/v1.24/BKV-Challenge.apk
