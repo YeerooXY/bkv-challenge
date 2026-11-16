@@ -1,9 +1,10 @@
 """FUTAR adapter for the nearby arrivals screen. Standard library only.
 
-Upstream: the BKK FUTAR query API (https://opendata.bkk.hu/docs/futar-openapi.yaml), two calls only:
+Upstream: the BKK FUTAR query API (https://opendata.bkk.hu/docs/futar-openapi.yaml), fixed endpoints only:
   arrivals-and-departures-for-stop  scheduled (departureTime) and estimated (predictedDepartureTime) times per stop,
                                     with the vehicle of every trip inline (includeVehicleFromTrip): one call per stop
   trip-details                      one trip by id and date, only to match a saved ride later
+  vehicles-for-route / vehicles-for-location   on-demand line or plate lookup
 
 The key stays in this process. Upstream URLs are built here from a fixed host and a fixed endpoint list; clients
 choose only validated stop and trip ids. Nothing here fabricates a time, a plate or a position: a missing value stays None.
@@ -15,11 +16,12 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 
 BASE = "https://futar.bkk.hu/api/query/v1/ws/otp/api/where/"
-ENDPOINTS = ("arrivals-and-departures-for-stop", "trip-details")
+ENDPOINTS = ("arrivals-and-departures-for-stop", "trip-details", "vehicles-for-route", "vehicles-for-location")
 API_VERSION = "5"  # version 5 carries predictionScheduled: a "prediction" that is only the timetable
 ATTRIBUTION = "Data source: BKK Zrt., CC BY 4.0"
 
@@ -193,6 +195,7 @@ class Transit:
         self.lock = threading.Lock()
         self.key_locks = defaultdict(threading.Lock)
         self.pool = ThreadPoolExecutor(4)
+        self.routes = None
 
     # ----- upstream -----
     def _http(self, url):
@@ -248,6 +251,52 @@ class Transit:
             raise ApiError(503, "no-key")
 
     # ----- public -----
+    def vehicles(self, query):
+        """Explicit, bounded live lookup. No polling or full feed is sent to the phone."""
+        self._need_key()
+        if not isinstance(query, str) or not re.fullmatch(r"[A-Za-z0-9 -]{1,40}", query):
+            raise ApiError(400, "bad-search")
+        query = re.sub(r"[ -]", "", query).upper()
+        if not query:
+            raise ApiError(400, "bad-search")
+        if self.routes is None:
+            try:
+                self.routes = json.loads((Path(__file__).parents[1] / "data" / "routes.json").read_text(encoding="utf-8"))["routes"]
+            except (OSError, ValueError, KeyError):
+                raise ApiError(503, "route-catalog-unavailable")
+        routes = [rid for rid, r in self.routes.items() if r.get("name", "").upper() == query]
+        if len(routes) > 6:
+            raise ApiError(400, "too-many-routes")
+        if not routes and len(query) < 3:
+            raise ApiError(400, "search-too-short")
+        def get_route(rid):
+            return self._cached(("vehicles-route", rid), lambda: self._call("vehicles-for-route", {"routeId": "BKK_" + rid.removeprefix("BKK_"), "includeReferences": "true"}))
+        if routes:
+            payloads = list(self.pool.map(get_route, routes))
+        else:
+            payloads = [self._cached(("vehicles-plate", query), lambda: self._call("vehicles-for-location", {"lat": 47.5, "lon": 19.05, "latSpan": 0.8, "lonSpan": 1.0, "query": query, "includeReferences": "true"}))]
+        now = int(self.clock() * 1000)
+        found, limited = {}, False
+        for payload in payloads:
+            data = _data(payload)
+            records = data.get("list")
+            if not isinstance(records, list):
+                raise ApiError(502, "upstream-bad-response")
+            limited = limited or bool(data.get("limitExceeded") or data.get("outOfRange"))
+            refs = _dict(data.get("references"))
+            for raw in records:
+                v = vehicle_block(raw, now)
+                if not v or not v["plate"]:
+                    continue
+                if not routes and query not in re.sub(r"[ -]", "", v["plate"]):
+                    continue
+                route = _dict(_dict(refs.get("routes")).get(raw.get("routeId")))
+                stop = _dict(_dict(refs.get("stops")).get(raw.get("stopId")))
+                found[v["plate"]] = {**v, "line": str(route.get("shortName") or self.routes.get(str(raw.get("routeId", "")).removeprefix("BKK_"), {}).get("name") or ""),
+                    "headsign": str(raw.get("label") or ""), "stop": str(stop.get("name") or ""), "type": str(raw.get("vehicleRouteType") or route.get("type") or "OTHER")}
+        return {"schemaVersion": 1, "serverNowMs": now, "state": "partial" if limited or len(found) > 100 else "ok", "query": query,
+                "kind": "line" if routes else "plate", "vehicles": sorted(found.values(), key=lambda v: v["plate"])[:100], "attribution": ATTRIBUTION}
+
     def arrivals(self, stop_ids, at=None):
         """One call per stop. `at` (epoch seconds) asks for the window around a past boarding instead of the next 30 minutes."""
         self._need_key()

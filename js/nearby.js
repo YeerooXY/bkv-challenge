@@ -39,7 +39,7 @@ async function api(path, params) {
   // An HTML page (a 404 from a static host, a captive portal) is never an empty list of arrivals.
   if (!(r.headers.get("content-type") || "").includes("json")) throw nbErr(r.status === 404 || nbCfg.apiBase === "" ? "absent" : "format"); // no service address: the static host answered
   let body; try { body = await r.json(); } catch { throw nbErr("format"); }
-  if (!r.ok) throw nbErr(r.status === 429 ? "busy" : body && body.reason === "no-key" ? "nokey" : "unavailable");
+  if (!r.ok) throw nbErr(r.status === 429 ? "busy" : body && body.reason === "no-key" ? "nokey" : body && ["bad-search", "search-too-short"].includes(body.reason) ? body.reason : "unavailable");
   if (!body || body.schemaVersion !== 1) throw nbErr("format");
   return body;
 }
@@ -436,6 +436,56 @@ function nearbyView(view) {
   if (view === "log") nbAuto();
 }
 document.addEventListener("visibilitychange", () => nbAuto());
+
+// Explicit lookup reuses the protected API and map; it never starts a polling loop.
+let liveOpener = null;
+$("detail").addEventListener("close", () => {
+  if (liveOpener) { const target = liveOpener; liveOpener = null; (target.isConnected ? target : document.querySelector('#tabs [aria-current="page"]')).focus(); }
+});
+function openLiveVehicle(v, opener) {
+  nb.open = null; liveOpener = opener;
+  $("detail-title").textContent = `${v.plate}${v.line ? ", line " + v.line : ""}`;
+  const body = $("detail-body"), map = el("div", "nb-map"), facts = el("ul", "plain");
+  facts.append(el("li", "", v.headsign ? `Toward ${v.headsign}` : "Destination unavailable."),
+    el("li", "", v.positionAtMs ? `Last report ${hhmm(v.positionAtMs)}${v.stale ? ", out of date" : ""}.` : "Report time unavailable."));
+  if (v.stop) facts.append(el("li", "", `Reported stop: ${v.stop}`));
+  const history = el("a", "", "Vehicle history on WinMenetrend"); history.href = "https://online.winmenetrend.hu/futar/history/vehicles/" + encodeURIComponent(v.plate); history.target = "_blank"; history.rel = "noopener noreferrer";
+  body.replaceChildren(map, facts, history); $("detail").showModal();
+  if (v.lat !== null && v.lon !== null && nbCfg.tiles) createMiniMap(map, [{lat:v.lat,lon:v.lon,kind:"vehicle"}], {tiles:nbCfg.tiles,attribution:nbCfg.attribution,attributionUrl:nbCfg.attributionUrl,onError:()=>map.replaceChildren(el("p","sub","Map tiles did not load. Try again with a connection."))});
+  else map.append(el("p", "sub", "Map position unavailable."));
+}
+function makeLiveLookup(query) {
+  const box = el("div", "livecard"), button = el("button", "", "Find live vehicles"), status = el("p", "sub"), list = el("div", "");
+  button.type = "button"; status.setAttribute("role", "status");
+  box.append(button, status, list); let seq = 0;
+  const clear = () => { seq++; status.textContent = ""; list.replaceChildren(); };
+  const run = async () => {
+    const q = query().trim(), request = ++seq;
+    if (!q) { status.textContent = "Enter a line or plate first."; return; }
+    status.textContent = "Looking up vehicles..."; button.setAttribute("aria-busy", "true");
+    try {
+      await loadNbConfig();
+      const result = await api("/v1/vehicles", {q});
+      if (request !== seq) return;
+      if (!Array.isArray(result.vehicles)) throw nbErr("format");
+      list.replaceChildren(...result.vehicles.map(v => {
+        const b = el("button", "nb-row"); b.type = "button";
+        const text = el("span", "nb-main"); text.append(el("strong", "", v.plate), el("span", "", `${v.line ? "Line " + v.line : "Line unavailable"}${v.headsign ? " · " + v.headsign : ""}`), el("span", "sub", v.positionAtMs ? `Last report ${hhmm(v.positionAtMs)}${v.stale ? " · Out of date" : ""}` : "Report time unavailable"));
+        b.append(text); b.onclick = () => openLiveVehicle(v, b); return b;
+      }));
+      status.textContent = result.vehicles.length ? `${result.vehicles.length} vehicle${result.vehicles.length===1?"":"s"}${result.kind==="line" ? " on line " + result.query : " found"}.${result.state==="partial" ? " Some results may be missing." : ""}` : "No live vehicle found. It may be out of service or not reporting. This lookup does not include earlier shifts.";
+    } catch(e) { if(request===seq) {list.replaceChildren();status.textContent = ["bad-search", "search-too-short"].includes(e.code) ? "Enter a line number or at least three plate characters (letters and numbers)." : `${NB_TEXT[e.code] || "Could not look up vehicles."} Press Find live vehicles to retry.`;} }
+    finally { if(request===seq) button.removeAttribute("aria-busy"); }
+  };
+  button.onclick = run;
+  return {box,run,clear};
+}
+for (const kind of ["lines", "plates"]) {
+  const input = $("q-"+kind), lookup = makeLiveLookup(()=>input.value);
+  $("view-"+kind).insertBefore(lookup.box, $("list-"+kind));
+  input.addEventListener("input", ()=>{lookup.clear();lookup.box.querySelector("button").removeAttribute("aria-busy");});
+  input.addEventListener("keydown", e=>{if(e.key==="Enter"){e.preventDefault();lookup.run();}});
+}
 
 // Match saved rides to the API once it is reachable. Only the ride's record changes; completion never does.
 // Only ride.api is written, onto the row as it is stored at that moment (photos, notes and track stay untouched bytes).

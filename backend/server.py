@@ -114,6 +114,8 @@ class Handler(BaseHTTPRequestHandler):
                 if at is not None and not (at.isascii() and at.isdigit() and len(at) <= 11):
                     raise ApiError(400, "bad-time")
                 return self._json(200, t.arrivals(q.get("stopId", []), int(at) if at is not None else None))
+            if parts.path == "/v1/vehicles":
+                return self._json(200, t.vehicles((q.get("q") or [""])[0]))
             if parts.path == "/v1/trip":
                 return self._json(200, t.trip((q.get("tripId") or [""])[0], (q.get("serviceDate") or [""])[0]))
             return self._json(404, {"error": "not-found"})

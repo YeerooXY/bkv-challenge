@@ -50,6 +50,8 @@ The service restarts on failure and at boot. Its user cannot modify the applicat
 
 ## Private HTTPS access
 
+Live line/plate lookup also needs the repository's `data/routes.json` installed as `/srv/familyhub/services/bkv-challenge/data/routes.json`, mode 0644, alongside the backend. Refresh it when route IDs change. The API reads the index once per process; restart `bkv-api` after replacing it. `/v1/vehicles?q=225` and `/v1/vehicles?q=SKR806` are on-demand, rate-limited, cached lookups through fixed FUTAR endpoints.
+
 The Windows Tailscale node provides a separate Serve port 8445, proxying `127.0.0.1:18766`. A separate SSH tunnel forwards that port to VM `127.0.0.1:8001`, using the existing saved key and strict host-key verification. Existing music routes 8443/8444 are preserved. Never enable Funnel for this service.
 
 The app's `data/api.json` points to the private HTTPS API. A phone needs Tailscale connected to the same tailnet. Windows, the VM and the tunnel must be running. The eventual dedicated Linux server should host its own Tailscale endpoint directly.

@@ -396,44 +396,13 @@ function showDetail(kind, o) {
   $("detail").showModal();
 }
 
-// Live status: read the vehicle's page on WinMenetrend (FUTAR data). Only the Android app can, because the site allows no cross-site requests.
+// Timetable clock uses Budapest time; live lookup reuses the protected backend.
 const budapestNow = () => new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Budapest" }));
-const isNative = () => !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());
-function ago(min) { return min < 2 ? "just now" : min < 90 ? `${Math.round(min)} min ago` : min < 2880 ? `${Math.round(min / 60)} hours ago` : `${Math.round(min / 1440)} days ago`; }
 
 function liveCard(plate) {
-  const box = el("div", "livecard"), head = el("div", "lhead"), dot = el("span", "dot"), title = el("strong", "", "Checking...");
-  const body = el("div", "lbody"), foot = el("p", "sub", ""), again = el("button", "plain", "Check again");
-  again.type = "button"; head.append(dot, title); box.setAttribute("role", "status"); box.append(head, body, foot, again);
-  const set = (state, t, node, f) => { box.className = "livecard " + state; title.textContent = t; body.replaceChildren(...(node ? [node] : [])); foot.textContent = f || ""; };
-  const run = async () => {
-    if (!isNative()) { set("none", "Live status needs the Android app", null, "The site it reads cannot be opened from a browser."); again.hidden = true; return; }
-    again.disabled = true; set("loading", "Checking...", null, "");
-    try {
-      const r = await Capacitor.nativePromise("CapacitorHttp", "get", { url: "https://online.winmenetrend.hu/futar/history/vehicles/" + encodeURIComponent(plate) });
-      const doc = new DOMParser().parseFromString(String(r.data), "text/html");
-      const text = doc.body.textContent.replace(/\s+/g, " ");
-      const m = text.match(/Utolsó bejelentkezés:\s*(\d{4})\.(\d{2})\.(\d{2})\.\s*(\d{1,2}):(\d{2})/);
-      if (!m) { set("none", "No live record", null, "This vehicle has not signed on recently."); again.disabled = false; return; }
-      const last = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]), min = (budapestNow() - last) / 60000;
-      const rows = [...doc.querySelectorAll("table")].flatMap((t) => [...t.rows]).map((tr) => [...tr.cells].map((c) => c.textContent.trim())).filter((c) => c.length >= 4 && /^\d{4}\./.test(c[0]));
-      const latest = rows[rows.length - 1], lineId = latest ? (routeNames[latest[2]] || latest[2]) : "";
-      const full = last.toLocaleString([], { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
-      const info = el("div", "linfo");
-      if (lineId) info.append(lineBadge(lineId));
-      if (min <= 10 && latest) {
-        info.append(el("span", "", `on the road since ${latest[0].slice(-5)}`));
-        set("on", "In service now", info, `Last signal ${ago(min)} (${full}). The end of the shift is not published.`);
-      } else {
-        if (lineId) info.append(el("span", "", "last line"));
-        set("off", "Not in service", lineId ? info : null, `Last signal ${ago(min)} (${full}).`);
-      }
-    } catch { set("none", "Could not check", null, "Try again with a connection."); }
-    again.disabled = false;
-  };
-  again.onclick = run;
-  run();
-  return box;
+  const box = makeLiveLookup(() => plate).box, history = el("a", "", "Vehicle history on WinMenetrend");
+  history.href = "https://online.winmenetrend.hu/futar/history/vehicles/" + encodeURIComponent(plate); history.target = "_blank"; history.rel = "noopener noreferrer";
+  box.append(history); return box;
 }
 $("detail-close").onclick = () => $("detail").close();
 
@@ -492,7 +461,7 @@ function renderMissing(kind) {
   const items = base.filter((i) => st === "all" || (st === "done" ? stateOf(i) === "done" : stateOf(i) !== "done")).sort((a, b) => (kind === "plates" && filters.sort === "idle" ? idleDays(b.o) - idleDays(a.o) || byName(a.k, b.k) : byName(a.k, b.k)));
   $("sum-" + kind).textContent = `${base.filter((i) => stateOf(i) === "done").length} of ${base.length} collected` + (kind === "lines" ? ". A line counts after you ride it end to end." : ".");
   const host = $("list-" + kind);
-  if (!items.length) { host.replaceChildren(el("p", "empty", st === "done" ? "Nothing collected here yet." : "Nothing left here.")); return; }
+  if (!items.length) { host.replaceChildren(el("p", "empty", q ? "No catalog matches these filters." : st === "done" ? "Nothing collected here yet." : "Nothing left here.")); return; }
   const out = []; let grid = null, lastType = null;
   items.slice(0, shown[kind]).forEach((i) => {
     const t = typeOf(i.type);

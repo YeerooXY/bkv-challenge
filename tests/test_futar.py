@@ -130,6 +130,44 @@ class BlockVehicles(unittest.TestCase):
             self.assertIsNone(r["plate"])
 
 
+class VehicleLookup(unittest.TestCase):
+    def make(self):
+        calls = []
+        def fetch(url):
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+            calls.append((url.split("?")[0].rsplit("/", 1)[-1], q))
+            v = vehicle("SKR806", NOW - 12, tripId="BKK_current", serviceDate="20261111", routeId="BKK_2250", label="Mexikoi ut M", vehicleRouteType="BUS")
+            return {"status":"OK", "data":{"list":[v], "references":{"routes":{"BKK_2250":{"shortName":"225"}}}}}
+        t = transit(fetch)
+        t.routes = {"2250":{"name":"225"}}
+        return t, calls
+
+    def test_line_returns_plate_route_destination_and_observed_position(self):
+        t, calls = self.make()
+        r = t.vehicles("225")
+        v = r["vehicles"][0]
+        self.assertEqual((r["kind"], v["plate"], v["line"], v["headsign"], v["stale"]), ("line", "SKR806", "225", "Mexikoi ut M", False))
+        self.assertEqual(calls[0][0], "vehicles-for-route.json")
+        self.assertEqual(calls[0][1]["routeId"], ["BKK_2250"])
+        t.vehicles("225")
+        self.assertEqual(len(calls), 1)
+
+    def test_plate_uses_server_lookup_and_normalizes_hyphen(self):
+        t, calls = self.make()
+        r = t.vehicles("skr-806")
+        self.assertEqual((r["kind"], r["vehicles"][0]["plate"]), ("plate", "SKR806"))
+        self.assertEqual(calls[0][0], "vehicles-for-location.json")
+        self.assertEqual(calls[0][1]["query"], ["SKR806"])
+        self.assertEqual(t.vehicles("ZZZ999")["vehicles"], [])
+
+    def test_search_rejects_bad_or_too_broad_input_before_upstream(self):
+        t, calls = self.make()
+        for q in ("", " ", "A", "AB", "../etc", "x"*41, "225&key=oops", None):
+            with self.assertRaises(ApiError):
+                t.vehicles(q)
+        self.assertEqual(calls, [])
+
+
 class Normalise(unittest.TestCase):
     def setUp(self):
         self.rows = {r["tripId"]: r for r in transit().arrivals(["F1"])["arrivals"]}
