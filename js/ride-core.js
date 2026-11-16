@@ -126,10 +126,19 @@
     if (e.ride !== undefined) { const ride = cleanRide(e.ride); if (!ride) return null; out.ride = ride; }
     return out;
   }
+  function uniqueVehicles(list, hhmm) {
+    const seen = new Set();
+    return sortArrivals(list, hhmm).filter((a) => {
+      const plate = a.plate && a.plate.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const key = plate ? `plate:${plate}` : a.vehicle && a.vehicle.id ? `vehicle:${a.vehicle.id}` : `trip:${a.serviceDate}:${a.tripId}`;
+      if (seen.has(key)) return false;
+      seen.add(key); return true;
+    });
+  }
   function cleanExtra(x, types) {
     if (!x || typeof x !== "object" || !["line", "plate"].includes(x.kind) || !str(x.value, 40) || !x.value.trim()) return null;
     return { key: x.kind + ":" + x.value, kind: x.kind, value: x.value, type: types.includes(x.type) ? x.type : "OTHER" };
   }
 
-  return { MIN_RIDE_MS, rideMs, rideSec, qualifies, countsForPlate, entryIdForSession, suggestStop, judgeTrip, judgeArrivals, sameStop, timeView, etaText, sortArrivals, cleanEntry, cleanExtra, IMG };
+  return { MIN_RIDE_MS, rideMs, rideSec, qualifies, countsForPlate, entryIdForSession, suggestStop, judgeTrip, judgeArrivals, sameStop, timeView, etaText, sortArrivals, uniqueVehicles, cleanEntry, cleanExtra, IMG };
 });

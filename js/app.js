@@ -859,10 +859,10 @@ $("to").onchange = () => { pick.to = +$("to").value; pick.edited = false; applyS
 $("stops").addEventListener("input", () => { pick.edited = true; updateRideNote(); });
 $("line").addEventListener("input", () => { buildPicker(); saveDraft(); });
 
-function locate() {
+function locate(maximumAge = 10000) {
   return new Promise((res, rej) => {
     if (!navigator.geolocation) return rej(new Error("no GPS"));
-    navigator.geolocation.getCurrentPosition((p) => res([p.coords.latitude, p.coords.longitude]), rej, { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 });
+    navigator.geolocation.getCurrentPosition((p) => res([p.coords.latitude, p.coords.longitude]), rej, { enableHighAccuracy: true, timeout: 15000, maximumAge });
   });
 }
 async function useLocation(which) {

@@ -78,13 +78,13 @@ async function nbFind(auto) {
   nb.busy = true; nb.last = Date.now();
   try {
     if (!auto || !nb.pos) nbSay("Finding you...");
-    try { nb.pos = await locate(); } catch { return nbSay(navigator.geolocation ? "Could not get your location. Allow location access and press Refresh, or use the Log form." : "This device cannot share its location. Use the Log form."); }
+    try { nb.pos = await locate(0); } catch { return nbSay(navigator.geolocation ? "Could not get your location. Allow location access and press Refresh, or use the Log form." : "This device cannot share its location. Use the Log form."); }
     if (!stopData.stops.some((s) => s[3])) return nbSay(nbFail("stops"));
     const cands = nearbyStops(nb.pos), same = cands.length === nb.cands.length && cands.every((c, i) => c.id === nb.cands[i].id);
     nb.cands = cands;
     if (!same) { nb.offset = 0; nb.off = new Set(); }
     if (!cands.length) { nb.arrivals = []; nbRows(); nbStopChips(); nbPoll(); return nbSay("No stops with vehicle data within 1 km of you. Use the Log form."); }
-    await nbLoad(!same); nbPoll();
+    await nbLoad(!same); nbStopChips(); nbPoll();
   } finally {
     nb.busy = false;
     if (nb.mode !== "nearby" || $("view-log").hidden || document.visibilityState !== "visible") nb.last = 0; // the rider left while this ran: refresh on return
@@ -95,7 +95,7 @@ function nbAuto(force) {
   if (nb.mode !== "nearby" || $("view-log").hidden || document.visibilityState !== "visible" || sessionRecording() || editing || nb.busy || nb.paused) return;
   if (force || !nb.last || Date.now() - nb.last >= POLL_MS - 1000) nbFind(true);
 }
-function nbPage() { return nb.cands.slice(nb.offset, nb.offset + PAGE_STOPS); }
+function nbPage() { return nb.cands.slice(0, nb.offset + PAGE_STOPS); }
 function nbStopChips() {
   const box = $("nb-stops"), page = nbPage(), idx = box.contains(document.activeElement) ? [...box.children].indexOf(document.activeElement) : -1;
   $("nb-filter").hidden = !page.length;
@@ -107,19 +107,28 @@ function nbStopChips() {
     return b;
   }));
   if (idx >= 0) (box.children[Math.min(idx, box.children.length - 1)] || $("nb-title")).focus(); // never fall to the page body
-  $("nb-more").hidden = nb.cands.length <= PAGE_STOPS;
-  $("nb-more").textContent = nb.offset + PAGE_STOPS >= nb.cands.length ? "First stops" : "Next stops";
+  const moreFocused = document.activeElement === $("nb-more");
+  $("nb-more").hidden = nb.offset + PAGE_STOPS >= nb.cands.length;
+  if ($("nb-more").hidden && moreFocused) $("nb-locate").focus();
+  $("nb-more").textContent = "More stops";
 }
 async function nbLoad(first) {
   const page = nbPage(), seq = ++nb.seq;
   if (!page.length) return;
   if (first) { nb.arrivals = []; nb.at = 0; nb.failed = null; nbStopChips(); nbRows(); nbSay("Loading arrivals..."); } // the cards of the previous page go with its chips
   try {
-    const body = await api("/v1/arrivals", { stopId: page.map((c) => c.id) });
+    const bodies = [];
+    for (let i = 0; i < page.length; i += PAGE_STOPS) {
+      bodies.push(await api("/v1/arrivals", { stopId: page.slice(i, i + PAGE_STOPS).map((c) => c.id) }));
+      if (seq !== nb.seq) return;
+    }
+    if (bodies.some((b) => !Array.isArray(b.arrivals) || !b.arrivals.every(validArrival))) throw nbErr("format");
+    const body = { ...bodies[0], arrivals: bodies.flatMap((b) => b.arrivals), state: bodies.some((b) => b.state === "partial") ? "partial" : "ok" };
     if (seq !== nb.seq) return; // a newer request replaced this one
     if (!Array.isArray(body.arrivals) || !body.arrivals.every(validArrival)) throw nbErr("format");
     nb.arrivals = body.arrivals; nb.skew = Number.isFinite(body.serverNowMs) ? body.serverNowMs - Date.now() : 0; nb.at = Date.now(); nb.failed = null; nb.paused = false;
-    nbSay(body.state === "partial" ? "Some stops did not load. Their vehicles are missing from this list." : nb.arrivals.length ? `${nb.arrivals.length} vehicles in the next 30 minutes.` : "No vehicles in the next 30 minutes at these stops.");
+    const count = RideCore.uniqueVehicles(nb.arrivals, hhmm).length;
+    nbSay(body.state === "partial" ? "Some stops did not load. Their vehicles are missing from this list." : count ? `${count} vehicles in the next 30 minutes.` : "No vehicles in the next 30 minutes at these stops.");
     $("nb-credit").hidden = false; $("nb-credit").textContent = `${body.attribution || "Data source: BKK Zrt., CC BY 4.0"}. Updated ${hhmm(Date.now())}.`;
   } catch (e) {
     if (seq !== nb.seq) return;
@@ -162,7 +171,7 @@ function nbRow(a, now) {
 function nbRows() {
   const box = $("nb-list"), had = box.contains(document.activeElement) ? document.activeElement : null, idx = had ? [...box.children].indexOf(had) : -1;
   const now = Date.now() + nb.skew, shown = new Set(nbPage().filter((c) => !nb.off.has(c.id)).map((c) => c.id));
-  const list = RideCore.sortArrivals(nb.arrivals.filter((a) => shown.has(a.stopId) && (RideCore.timeView(a, hhmm).effectiveMs ?? now) >= now - 60000), hhmm);
+  const list = RideCore.uniqueVehicles(nb.arrivals.filter((a) => shown.has(a.stopId) && (RideCore.timeView(a, hhmm).effectiveMs ?? now) >= now - 60000), hhmm);
   const rows = list.map((a) => nbRow(a, now));
   box.replaceChildren(...(rows.length || !nb.at || nb.failed || !nb.cands.length ? rows : [el("p", "empty", "Nothing arriving at the selected stops.")]));
   if (had) (rows.find((r) => r.dataset.key === had.dataset.key) || rows[Math.min(idx, rows.length - 1)] || $("nb-title")).focus(); // never fall to the page body
@@ -405,8 +414,11 @@ $("nb-locate").onclick = () => { nb.paused = false; nbFind(false); }; // an expl
 $("nb-more").onclick = async () => {
   if (nb.busy) return; // same one-request guard as the timer and Refresh
   nb.busy = true; nb.last = Date.now();
-  nb.offset = nb.offset + PAGE_STOPS >= nb.cands.length ? 0 : nb.offset + PAGE_STOPS;
-  try { await nbLoad(true); } finally { nb.busy = false; }
+  nb.offset += PAGE_STOPS;
+  try { await nbLoad(false); nbStopChips(); } finally {
+    nb.busy = false;
+    if ($("nb-more").hidden && document.activeElement === $("nb-more")) $("nb-locate").focus();
+  }
 };
 // Entering Log opens Nearby unless a ride or an edit needs the form; the first lookup runs here, never at app start.
 function nearbyView(view) {
