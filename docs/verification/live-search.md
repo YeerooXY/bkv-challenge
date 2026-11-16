@@ -1,5 +1,13 @@
 # Live line and plate search, 2026-11-16
 
+## Line-detail correction
+
+Owner requested Find live vehicles inside the selected line, using the boarding style. Moved the Lines-page lookup into showDetail's Vehicles section, kept the separate Plates lookup, and reused the existing Nearby row layout, BKK mode colors and badge. Each card includes destination, plate, reported stop (coordinates when stop is absent) and report time. The vehicle map can return to the retained line content without a new request, restoring focus to its card. Native modal closing returns to the originating line tile on all four engines; keyboard control clicks no longer get mistaken for backdrop clicks. Removed the decorative Did you know label encountered in this same line detail.
+
+Checked BKK's official FUTAR page and inspected its photo: https://bkk.hu/fejlesztesek/osszes-fejlesztesunk/a-futar-forgalomiranyitasi-rendszer-kozteruleti-kijelzok-esmobilalkalmazas.8115/ and https://bkk.hu/static/content/2022/06/cms-dsc_7035.jpg. The implementation preserves the app's selected boarding-card composition; it does not claim to reproduce the photographed street LED board. Registration strings remain provider identifiers, unchanged.
+
+Updated live-search.cjs passed all four emulated profiles: opening line 225, explicit lookup, card layout, map, Back without another request, focus restoration through Back and Escape, Plates lookup, failure and empty results. Also reran the four-profile likely-plate boarding regression and 15 Node tests. New *-line.png captures record line-detail placement; updated map and results captures record the corrected flow. Service-worker cache v25; backend unchanged. Physical devices remain untested.
+
 Problem: catalog search filters line IDs or plates only, with additional mode/model/rarity/completion filters. Searching 225 in Plates cannot find vehicles by their active line. Previous vehicle status scraped WinMenetrend in native Android only and did not supply coordinates or direction in browsers.
 
 Implemented an explicit Find live vehicles action on both existing search screens. Enter submits too. Known line numbers resolve via the existing route index; other input queries plates (minimum three plate characters). Catalog filters remain independent. Catalog empty copy now identifies a filter mismatch. Plate details reuse the same lookup; the external vehicle-history link remains available. Live result details show line, destination, last report time, reported stop when supplied, and the existing map component for observed positions. This is a current-report lookup, not a complete historical shift roster; earlier history is linked externally.

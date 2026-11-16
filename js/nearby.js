@@ -443,6 +443,7 @@ $("detail").addEventListener("close", () => {
   if (liveOpener) { const target = liveOpener; liveOpener = null; (target.isConnected ? target : document.querySelector('#tabs [aria-current="page"]')).focus(); }
 });
 function openLiveVehicle(v, opener) {
+  const previous = $("detail").open ? {title:$("detail-title").textContent, nodes:[...$("detail-body").childNodes]} : null;
   nb.open = null; liveOpener = opener;
   $("detail-title").textContent = `${v.plate}${v.line ? ", line " + v.line : ""}`;
   const body = $("detail-body"), map = el("div", "nb-map"), facts = el("ul", "plain");
@@ -450,7 +451,12 @@ function openLiveVehicle(v, opener) {
     el("li", "", v.positionAtMs ? `Last report ${hhmm(v.positionAtMs)}${v.stale ? ", out of date" : ""}.` : "Report time unavailable."));
   if (v.stop) facts.append(el("li", "", `Reported stop: ${v.stop}`));
   const history = el("a", "", "Vehicle history on WinMenetrend"); history.href = "https://online.winmenetrend.hu/futar/history/vehicles/" + encodeURIComponent(v.plate); history.target = "_blank"; history.rel = "noopener noreferrer";
-  body.replaceChildren(map, facts, history); $("detail").showModal();
+  body.replaceChildren(map, facts, history); if (!$("detail").open) $("detail").showModal();
+  if (previous) {
+    const back = el("button", "", `Back to ${previous.title}`); back.type = "button";
+    back.onclick = () => { body.replaceChildren(...previous.nodes); $("detail-title").textContent = previous.title; liveOpener = null; opener.focus(); };
+    body.prepend(back); back.focus();
+  }
   if (v.lat !== null && v.lon !== null && nbCfg.tiles) createMiniMap(map, [{lat:v.lat,lon:v.lon,kind:"vehicle"}], {tiles:nbCfg.tiles,attribution:nbCfg.attribution,attributionUrl:nbCfg.attributionUrl,onError:()=>map.replaceChildren(el("p","sub","Map tiles did not load. Try again with a connection."))});
   else map.append(el("p", "sub", "Map position unavailable."));
 }
@@ -470,8 +476,12 @@ function makeLiveLookup(query) {
       if (!Array.isArray(result.vehicles)) throw nbErr("format");
       list.replaceChildren(...result.vehicles.map(v => {
         const b = el("button", "nb-row"); b.type = "button";
-        const text = el("span", "nb-main"); text.append(el("strong", "", v.plate), el("span", "", `${v.line ? "Line " + v.line : "Line unavailable"}${v.headsign ? " · " + v.headsign : ""}`), el("span", "sub", v.positionAtMs ? `Last report ${hhmm(v.positionAtMs)}${v.stale ? " · Out of date" : ""}` : "Report time unavailable"));
-        b.append(text); b.onclick = () => openLiveVehicle(v, b); return b;
+        const colors = lineColors(allLines().find(l => l.id === v.line) || {type:v.type});
+        b.style.setProperty("--line-c", "#"+colors[0]);
+        const text = el("span", "nb-main"); text.append(el("strong", "nb-head", v.headsign || "Destination unavailable"), el("span", "nb-plate", v.plate),
+          el("span", "sub", v.stop ? `Reported stop: ${v.stop}` : Number.isFinite(v.lat) && Number.isFinite(v.lon) ? `${v.lat.toFixed(5)}, ${v.lon.toFixed(5)}` : "Position unavailable"),
+          el("span", "sub", v.positionAtMs ? `Last report ${hhmm(v.positionAtMs)}${v.stale ? " · Out of date" : ""}` : "Report time unavailable"));
+        b.append(badge(v.line || "?", colors), text); b.onclick = () => openLiveVehicle(v, b); return b;
       }));
       status.textContent = result.vehicles.length ? `${result.vehicles.length} vehicle${result.vehicles.length===1?"":"s"}${result.kind==="line" ? " on line " + result.query : " found"}.${result.state==="partial" ? " Some results may be missing." : ""}` : "No live vehicle found. It may be out of service or not reporting. This lookup does not include earlier shifts.";
     } catch(e) { if(request===seq) {list.replaceChildren();status.textContent = ["bad-search", "search-too-short"].includes(e.code) ? "Enter a line number or at least three plate characters (letters and numbers)." : `${NB_TEXT[e.code] || "Could not look up vehicles."} Press Find live vehicles to retry.`;} }
@@ -480,7 +490,7 @@ function makeLiveLookup(query) {
   button.onclick = run;
   return {box,run,clear};
 }
-for (const kind of ["lines", "plates"]) {
+for (const kind of ["plates"]) {
   const input = $("q-"+kind), lookup = makeLiveLookup(()=>input.value);
   $("view-"+kind).insertBefore(lookup.box, $("list-"+kind));
   input.addEventListener("input", ()=>{lookup.clear();lookup.box.querySelector("button").removeAttribute("aria-busy");});

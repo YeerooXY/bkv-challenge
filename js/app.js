@@ -295,7 +295,7 @@ function collTile(kind, o, state) {
   if (tier) b.append(el("span", "gem"));
   if (kind === "plates" && idleDays(o) >= 3) b.append(el("span", "idle", idleDays(o) + "d"));
   b.setAttribute("aria-label", `${kind === "lines" ? "Line " + o.id : "Plate " + o.plate}, ${tier ? TIER_NAMES[tier].toLowerCase() + ", " : ""}${STATE_TEXT[state]}`);
-  b.onclick = () => showDetail(kind === "lines" ? "line" : "plate", o);
+  b.onclick = () => { b.focus(); showDetail(kind === "lines" ? "line" : "plate", o); };
   return b;
 }
 
@@ -378,13 +378,14 @@ function showDetail(kind, o) {
   } else {
     $("detail-title").textContent = `Line ${o.id}`;
     body.append(badge(o.id, lineColors(o)), el("span", "sub", ` ${TYPES[typeOf(o.type)]}`));
+    section("Vehicles", makeLiveLookup(() => o.id).box);
     const ride = entries.filter((e) => normLine(e.line) === o.id);
     const dd = stopData.lines[o.id], whole = ride.some(rideCoversLine);
     body.append(el("p", "", whole ? "Ridden end to end." : ride.length ? `Ridden ${ride.length} time${ride.length > 1 ? "s" : ""}, but not end to end yet.` : "Not ridden yet."));
     if (!whole && dd) body.append(el("p", "sub", `Ride from ${stopName(dd[0].s[0])} to ${stopName(dd[0].s[dd[0].s.length - 1])}, either way, to complete it.`));
     if (tierOf(o) > 0) body.append(tierBox());
     if (o.fc) {
-      const f = el("div", "factbox"); f.append(el("strong", "", "Did you know"), el("p", "", o.fc));
+      const f = el("div", "factbox"); f.append(el("p", "", o.fc));
       const st = el("div", "facts"); [...(o.ns ? [`${o.ns} stops`, `${o.km} km`, `${o.tp} trips on a weekday`] : []), ...(o.tr || [])].forEach((t) => st.append(el("span", "factchip", t)));
       f.append(st); body.append(f);
     }
@@ -1084,6 +1085,7 @@ $("update-btn").onclick = async () => {
 
 // Tapping outside a sheet closes it.
 document.querySelectorAll("dialog.sheet").forEach((d) => d.addEventListener("click", (e) => {
+  if (e.target !== d) return; // keyboard activation of a control is not a backdrop click
   const r = d.getBoundingClientRect();
   if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) d.close();
 }));
