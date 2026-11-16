@@ -16,6 +16,8 @@ A line counts once ridden end to end. A plate counts once one ride of at least 1
 
 ## Nearby arrivals and the ride timer
 
+Nearby also asks BKK for vehicles linked through their duty. If the linked vehicle is still on another trip, its card says **Likely [plate]**. Open the card to board with a blank plate, or explicitly confirm the suggested plate and board after checking the vehicle. Likely plates have no New/Completed badge or vehicle-position marker. Stale, undated and conflicting-date associations remain unknown. Historical ride matching does not request duty-linked vehicles.
+
 - **Log, Nearby**: Find vehicles near me lists the vehicles arriving at the platforms around you, soonest first, with line, headsign, plate, New or Completed, and the time. When a live prediction differs from the timetable, the scheduled time is struck through in red and the predicted time follows it in red. Without a prediction the timetable time is shown as Scheduled. A vehicle without a plate reads Plate unavailable and is never New.
 - **Tap a row** for the map and details. **Board this vehicle** fills the Log form and starts the ride timer and GPS. **Board now** on the Log screen does the same for a vehicle you pick by hand.
 - **Get off** stops GPS, saves the end time and suggests the stop you got off at from your latest GPS point. You confirm or change it. Add a photo and save as usual.

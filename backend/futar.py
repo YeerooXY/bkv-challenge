@@ -105,7 +105,7 @@ def _dict(v):
     return v
 
 
-def stop_rows(payload, stop_id, now_ms, past=False):
+def stop_rows(payload, stop_id, now_ms, past=False, block_vehicles=False):
     """Arrival rows for one stop with the inline vehicle. Past departures (unless asked for) and stops with no pickup are dropped.
     Unexpected shapes raise ApiError 502; an absent value stays None."""
     data = _data(payload)
@@ -150,7 +150,22 @@ def stop_rows(payload, stop_id, now_ms, past=False):
             "vehicle": None,
             "plate": None,
         })
-        attach(out[-1], vehicle_block(st.get("vehicle"), now_ms))
+        raw_vehicle = st.get("vehicle")
+        vehicle = vehicle_block(raw_vehicle, now_ms)
+        if block_vehicles and vehicle:
+            # Block expansion can refer to a vehicle still performing an earlier trip.
+            # Never turn that planned association into observed occupancy of this trip.
+            source_trip = raw_vehicle.get("tripId")
+            source_date = raw_vehicle.get("serviceDate")
+            same_trip = isinstance(source_trip, str) and source_trip.removeprefix("BKK_") == st["tripId"].removeprefix("BKK_")
+            same_date = bool(out[-1]["serviceDate"]) and source_date == out[-1]["serviceDate"]
+            if same_trip and same_date:
+                attach(out[-1], vehicle)
+            elif (not same_trip and same_date and isinstance(source_trip, str) and TRIP_RE.fullmatch(source_trip)
+                  and vehicle["plate"] and not vehicle["stale"] and vehicle["positionAtMs"] <= now_ms + 30_000):
+                out[-1].update(likelyPlate=vehicle["plate"], identitySource="vehicle-block", sourceTripId=source_trip)
+        else:
+            attach(out[-1], vehicle)
     return out
 
 
@@ -248,7 +263,7 @@ class Transit:
         window = {"time": at, "minutesBefore": HISTORY_WINDOW, "minutesAfter": HISTORY_WINDOW} if at is not None else {"minutesBefore": 0, "minutesAfter": MINUTES_AFTER}
 
         def one(s):
-            p = {"stopId": full[s], **window, "includeReferences": "true", "includeVehicleFromTrip": "true"}
+            p = {"stopId": full[s], **window, "includeReferences": "true", "includeVehicleFromTrip": "true", "includeVehicleFromVehicleBlock": "true" if at is None else "false"}
             try:
                 return self._cached(("stop", full[s], at), lambda: self._call("arrivals-and-departures-for-stop", p))
             except ApiError as e:
@@ -260,7 +275,7 @@ class Transit:
         for s, payload in zip(stops, raw):
             if not isinstance(payload, ApiError):
                 try:
-                    rows += stop_rows(payload, s, now_ms, past=at is not None)
+                    rows += stop_rows(payload, s, now_ms, past=at is not None, block_vehicles=at is None)
                 except ApiError as e:
                     errors.append(e)
                 except (TypeError, AttributeError, ValueError, OverflowError):  # a shape the checks above did not foresee

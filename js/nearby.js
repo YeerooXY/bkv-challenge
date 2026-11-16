@@ -49,6 +49,7 @@ function validArrival(a) {
   const v = a && a.vehicle;
   return !!a && strN(a.key, 300) && strN(a.stopId, 40) && strN(a.tripId, 80) && strN(a.line, 30) && strN(a.headsign, 150) && numN(a.scheduledAtMs) && numN(a.predictedAtMs) && numN(a.delaySec)
     && (a.timing === "realtime" || a.timing === "scheduled") && (a.plate === null || strN(a.plate, 40)) && (a.serviceDate === null || strN(a.serviceDate, 8))
+    && (a.likelyPlate === undefined || (a.plate === null && strN(a.likelyPlate, 40) && !!a.likelyPlate && a.identitySource === "vehicle-block" && strN(a.sourceTripId, 80)))
     && (v === null || (typeof v === "object" && numN(v.lat) && numN(v.lon) && numN(v.positionAtMs) && (v.id === null || strN(v.id, 80))));
 }
 
@@ -128,7 +129,7 @@ async function nbLoad(first) {
     if (!Array.isArray(body.arrivals) || !body.arrivals.every(validArrival)) throw nbErr("format");
     nb.arrivals = body.arrivals; nb.skew = Number.isFinite(body.serverNowMs) ? body.serverNowMs - Date.now() : 0; nb.at = Date.now(); nb.failed = null; nb.paused = false;
     const count = RideCore.uniqueVehicles(nb.arrivals, hhmm).length;
-    nbSay(body.state === "partial" ? "Some stops did not load. Their vehicles are missing from this list." : count ? `${count} vehicles in the next 30 minutes.` : "No vehicles in the next 30 minutes at these stops.");
+    nbSay(body.state === "partial" ? "Some stops did not load. Their vehicles are missing from this list." : count ? `${count} vehicle${count === 1 ? "" : "s"} in the next 30 minutes.` : "No vehicles in the next 30 minutes at these stops.");
     $("nb-credit").hidden = false; $("nb-credit").textContent = `${body.attribution || "Data source: BKK Zrt., CC BY 4.0"}. Updated ${hhmm(Date.now())}.`;
   } catch (e) {
     if (seq !== nb.seq) return;
@@ -156,7 +157,7 @@ function nbRow(a, now) {
     meta.append(el("span", "nb-plate", a.plate));
     meta.append(el("span", "nb-state " + (clearedPlates().has(pk) ? "done" : "new"), clearedPlates().has(pk) ? "Completed" : "New"));
     if (!clearedPlates().has(pk) && entries.some((e) => normPlate(e.plate) === pk)) meta.append(el("span", "sub", "Logged without a completed ride"));
-  } else meta.append(el("span", "nb-plate none", "Plate unavailable"));
+  } else meta.append(el("span", "nb-plate none", a.likelyPlate ? `Likely ${a.likelyPlate}` : "Plate unavailable"));
   if (tier) meta.append(el("span", `nb-tier r${tier}`, TIER_NAMES[tier]));
   const clock = el("span", "nb-time"); clock.setAttribute("aria-hidden", "true");
   if (tv.kind === "changed") clock.append(el("s", "nb-old", tv.scheduled), el("b", "nb-new", tv.predicted));
@@ -189,6 +190,9 @@ function nbOpen(a) {
   if (a.timing === "scheduled" && !a.stale) facts.append(el("li", "", "No live prediction for this vehicle. The time is the timetable."));
   if (a.stale) facts.append(el("li", "", "The last vehicle report is old, so no live prediction is shown."));
   facts.append(el("li", "", pk ? `Plate ${a.plate}. ${clearedPlates().has(pk) ? "Completed" : "New"}.` : "Plate unavailable. Check the vehicle and enter the plate on the Log form."));
+  if (a.likelyPlate) {
+    facts.lastChild.textContent = `Likely ${a.likelyPlate}. BKK links this vehicle from another trip on the same duty. Check the plate on the vehicle before using it.`;
+  }
   const obj = pk && allPlates().find((p) => p.plate === pk);
   if (obj && tierOf(obj) > 0) { const t = tierOf(obj); facts.append(el("li", "", `${TIER_NAMES[t]}${rarityWhy("plate", obj).length ? ": " + rarityWhy("plate", obj).join(". ") : ""}`)); }
   const pts = [];
@@ -198,9 +202,14 @@ function nbOpen(a) {
     facts.append(el("li", "", `Vehicle position from ${v.positionAtMs ? hhmm(v.positionAtMs) : "an unknown time"}${v.stale ? ", out of date" : ""}${stop ? `, ${Math.round(dist([v.lat, v.lon], [stop.lat, stop.lon]))} m from the stop` : ""}.`));
   } else facts.append(el("li", "", "No vehicle position yet."));
   if (nb.pos) pts.push({ lat: nb.pos[0], lon: nb.pos[1], kind: "me" });
-  const map = el("div", "nb-map"), board = el("button", "primary", "Board this vehicle"); board.type = "button";
+  const map = el("div", "nb-map"), board = el("button", "primary", a.likelyPlate ? "Board and enter plate" : "Board this vehicle"); board.type = "button";
   board.disabled = !!rideSession; board.onclick = () => nbBoard(a);
   const row = el("div", "row"); row.append(board);
+  if (a.likelyPlate) {
+    row.style.flexDirection = "column";
+    const use = el("button", "", `Confirm ${a.likelyPlate} and board`); use.type = "button"; use.disabled = !!rideSession;
+    use.onclick = () => nbBoard({ ...a, plate: a.likelyPlate }); row.append(use);
+  }
   if (rideSession) row.append(el("span", "sub", "Finish or discard the current ride first."));
   body.append(map, facts, row, el("p", "sub", "Boarding starts the ride timer and records your location on this device until you get off."));
   $("detail").showModal();

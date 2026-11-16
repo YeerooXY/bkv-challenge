@@ -32,6 +32,10 @@ def vehicle(plate, seen, lat=47.5, lon=19.05, **extra):
 
 
 def envelope(times, trips=None):
+    for st in times:
+        if isinstance(st.get("vehicle"), dict):
+            st["vehicle"].setdefault("tripId", st["tripId"])
+            st["vehicle"].setdefault("serviceDate", st.get("serviceDate"))
     trips = trips if trips is not None else {st["tripId"]: {"routeId": "R9", "tripHeadsign": f"Head {st['tripId']}", "directionId": "0"} for st in times}
     routes = {"R9": {"shortName": "9", "type": "BUS"}}
     return {"version": 5, "status": "OK", "code": 200, "data": {"entry": {"stopId": "BKK_F1", "stopTimes": times}, "references": {"trips": trips, "routes": routes}}}
@@ -79,6 +83,51 @@ class Fake:
 
 def transit(fetch=None, key=KEY):
     return Transit(key, fetch or Fake(), clock=lambda: NOW)
+
+
+class BlockVehicles(unittest.TestCase):
+    def payload(self, **changes):
+        v = vehicle("SKR806", NOW - 10, tripId="BKK_previous", serviceDate="20261111", **changes)
+        return envelope([stop_time("next", NOW + 300, NOW + 330, vehicle=v)])
+
+    def test_provider_duty_is_candidate_not_confirmed_vehicle(self):
+        f = Fake(arrivals=self.payload)
+        t = transit(f)
+        r = t.arrivals(["F1"])["arrivals"][0]
+        self.assertEqual((r["plate"], r["vehicle"], r["likelyPlate"], r["identitySource"], r["sourceTripId"]),
+                         (None, None, "SKR806", "vehicle-block", "BKK_previous"))
+        self.assertEqual(r["timing"], "realtime")  # candidate's preceding-trip position is not this trip's timing
+        self.assertEqual(f.queries[0]["includeVehicleFromVehicleBlock"], ["true"])
+        t.arrivals(["F1"])
+        self.assertEqual(len(f.calls), 1)  # no extra requests, shared cached result
+
+    def test_stale_missing_and_future_reports_do_not_infer(self):
+        for seen in (NOW - 181, None, NOW + 31):
+            p = self.payload()
+            p["data"]["entry"]["stopTimes"][0]["vehicle"]["lastUpdateTime"] = seen
+            r = transit(Fake(arrivals=lambda: p)).arrivals(["F1"])["arrivals"][0]
+            self.assertNotIn("likelyPlate", r)
+            self.assertIsNone(r["plate"])
+
+    def test_wrong_or_missing_service_date_and_untraceable_trip_do_not_infer(self):
+        for field, value in (("serviceDate", "20261110"), ("serviceDate", None), ("tripId", None), ("tripId", "bad trip")):
+            p = self.payload()
+            p["data"]["entry"]["stopTimes"][0]["vehicle"][field] = value
+            r = transit(Fake(arrivals=lambda: p)).arrivals(["F1"])["arrivals"][0]
+            self.assertNotIn("likelyPlate", r)
+            self.assertIsNone(r["vehicle"])
+
+    def test_historical_query_never_requests_block_identity(self):
+        f = Fake(arrivals=lambda: envelope([stop_time("next", NOW - 300)]))
+        transit(f).arrivals(["F1"], at=NOW - 300)
+        self.assertEqual(f.queries[0]["includeVehicleFromVehicleBlock"], ["false"])
+
+    def test_line225_three_provider_continuations(self):
+        for current, next_trip, plate in (("D18484476", "D18484481", "SKR806"), ("D18484477", "D18484478", "MFW522"), ("D18484479", "D18484480", "AAHY805")):
+            p = envelope([stop_time(next_trip, NOW + 300, vehicle=vehicle(plate, NOW - 10, tripId=current, serviceDate="20261111"))])
+            r = transit(Fake(arrivals=lambda: p)).arrivals(["F1"])["arrivals"][0]
+            self.assertEqual(r["likelyPlate"], plate)
+            self.assertIsNone(r["plate"])
 
 
 class Normalise(unittest.TestCase):

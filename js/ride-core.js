@@ -129,7 +129,8 @@
   function uniqueVehicles(list, hhmm) {
     const seen = new Set();
     return sortArrivals(list, hhmm).filter((a) => {
-      const plate = a.plate && a.plate.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const value = a.plate || a.likelyPlate;
+      const plate = value && value.toUpperCase().replace(/[^A-Z0-9]/g, "");
       const key = plate ? `plate:${plate}` : a.vehicle && a.vehicle.id ? `vehicle:${a.vehicle.id}` : `trip:${a.serviceDate}:${a.tripId}`;
       if (seen.has(key)) return false;
       seen.add(key); return true;
