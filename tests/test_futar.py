@@ -160,6 +160,12 @@ class VehicleLookup(unittest.TestCase):
         self.assertEqual(calls[0][1]["query"], ["SKR806"])
         self.assertEqual(t.vehicles("ZZZ999")["vehicles"], [])
 
+    def test_combined_line_number_keeps_its_hyphen(self):
+        t, calls = self.make()
+        t.routes["3046"] = {"name":"4-6"}
+        self.assertEqual(t.vehicles("4-6")["query"], "4-6")
+        self.assertEqual(calls[0][1]["routeId"], ["BKK_3046"])
+
     def test_search_rejects_bad_or_too_broad_input_before_upstream(self):
         t, calls = self.make()
         for q in ("", " ", "A", "AB", "../etc", "x"*41, "225&key=oops", None):

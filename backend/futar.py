@@ -256,7 +256,8 @@ class Transit:
         self._need_key()
         if not isinstance(query, str) or not re.fullmatch(r"[A-Za-z0-9 -]{1,40}", query):
             raise ApiError(400, "bad-search")
-        query = re.sub(r"[ -]", "", query).upper()
+        line_query = query.replace(" ", "").upper()
+        query = line_query.replace("-", "")
         if not query:
             raise ApiError(400, "bad-search")
         if self.routes is None:
@@ -264,7 +265,7 @@ class Transit:
                 self.routes = json.loads((Path(__file__).parents[1] / "data" / "routes.json").read_text(encoding="utf-8"))["routes"]
             except (OSError, ValueError, KeyError):
                 raise ApiError(503, "route-catalog-unavailable")
-        routes = [rid for rid, r in self.routes.items() if r.get("name", "").upper() == query]
+        routes = [rid for rid, r in self.routes.items() if r.get("name", "").upper() == line_query]
         if len(routes) > 6:
             raise ApiError(400, "too-many-routes")
         if not routes and len(query) < 3:
@@ -294,7 +295,7 @@ class Transit:
                 stop = _dict(_dict(refs.get("stops")).get(raw.get("stopId")))
                 found[v["plate"]] = {**v, "line": str(route.get("shortName") or self.routes.get(str(raw.get("routeId", "")).removeprefix("BKK_"), {}).get("name") or ""),
                     "headsign": str(raw.get("label") or ""), "stop": str(stop.get("name") or ""), "type": str(raw.get("vehicleRouteType") or route.get("type") or "OTHER")}
-        return {"schemaVersion": 1, "serverNowMs": now, "state": "partial" if limited or len(found) > 100 else "ok", "query": query,
+        return {"schemaVersion": 1, "serverNowMs": now, "state": "partial" if limited or len(found) > 100 else "ok", "query": line_query if routes else query,
                 "kind": "line" if routes else "plate", "vehicles": sorted(found.values(), key=lambda v: v["plate"])[:100], "attribution": ATTRIBUTION}
 
     def arrivals(self, stop_ids, at=None):
