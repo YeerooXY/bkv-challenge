@@ -1,5 +1,5 @@
 {
-  "apiBase": "",
+  "apiBase": "https://yeeroo.taile0034e.ts.net:8445",
   "tiles": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
   "attribution": "© OpenStreetMap contributors",
   "attributionUrl": "https://www.openstreetmap.org/copyright"
